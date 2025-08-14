@@ -1,0 +1,17 @@
+# Test addresses for gleeth balance checking
+# Lines starting with # are comments and will be ignored
+
+# Vitalik's address (well-known address)
+0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+
+# Null address (receives accidental transfers)
+0x0000000000000000000000000000000000000000
+
+# Pattern address
+0x1111111111111111111111111111111111111111
+
+# Another test address
+0x2222222222222222222222222222222222222222
+
+# Ethereum Foundation address
+0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe
