@@ -8,6 +8,7 @@ import gleeth/commands/estimate_gas
 import gleeth/commands/get_logs
 import gleeth/commands/storage_at
 import gleeth/commands/transaction
+import gleeth/commands/wallet
 import gleeth/config
 import gleeth/ethereum/formatting
 import gleeth/rpc/types as rpc_types
@@ -20,6 +21,7 @@ pub fn main() -> Nil {
         Ok(parsed_args) -> {
           case parsed_args.command {
             cli.Help -> cli.show_help()
+            cli.Wallet(wallet_args) -> execute_wallet_command(wallet_args)
             _ -> {
               case config.new(parsed_args.rpc_url) {
                 Ok(cfg) ->
@@ -31,6 +33,21 @@ pub fn main() -> Nil {
         }
         Error(err) -> print_error(err)
       }
+    }
+  }
+}
+
+fn execute_wallet_command(wallet_args: List(String)) -> Nil {
+  case wallet.parse_args(wallet_args) {
+    Ok(operation) -> {
+      case wallet.run(operation) {
+        Ok(_) -> Nil
+        Error(msg) -> formatting.print_error("Wallet error: " <> msg)
+      }
+    }
+    Error(msg) -> {
+      formatting.print_error("Invalid wallet command: " <> msg)
+      wallet.print_usage()
     }
   }
 }
@@ -49,6 +66,11 @@ fn execute_command(command: cli.Command, rpc_url: String) -> Nil {
       storage_at.execute(rpc_url, address, slot, block)
     cli.GetLogs(from_block, to_block, address, topics) ->
       get_logs.execute(rpc_url, from_block, to_block, address, topics)
+    cli.Wallet(_) -> {
+      // This case should not occur due to earlier handling
+      formatting.print_error("Wallet command should be handled separately")
+      Ok(Nil)
+    }
     cli.Help -> {
       cli.show_help()
       Ok(Nil)

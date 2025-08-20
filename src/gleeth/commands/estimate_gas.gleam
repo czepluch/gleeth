@@ -53,7 +53,13 @@ fn print_gas_estimate(
     _ -> {
       case hex.hex_to_int(value) {
         Ok(decimal_wei) ->
-          io.println("  Value: " <> int.to_string(decimal_wei) <> " wei (" <> value <> ")")
+          io.println(
+            "  Value: "
+            <> int.to_string(decimal_wei)
+            <> " wei ("
+            <> value
+            <> ")",
+          )
         Error(_) -> io.println("  Value: " <> value)
       }
     }
@@ -78,7 +84,9 @@ fn print_gas_estimate(
   // Convert hex gas estimate to decimal for readability
   case hex.hex_to_int(gas_estimate) {
     Ok(decimal_gas) -> {
-      io.println("Estimated Gas (decimal): " <> int.to_string(decimal_gas) <> " units")
+      io.println(
+        "Estimated Gas (decimal): " <> int.to_string(decimal_gas) <> " units",
+      )
 
       // Estimate cost at different gas prices
       print_cost_estimates(decimal_gas)
@@ -91,25 +99,25 @@ fn print_gas_estimate(
 
 // Print cost estimates at different gas prices
 fn print_cost_estimates(gas_units: Int) -> Nil {
-      io.println("")
-      io.println("Cost Estimates:")
+  io.println("")
+  io.println("Cost Estimates:")
 
-      // Common gas prices in gwei
-      let gas_prices = [
-        #(10, "10 gwei (slow)"),
-        #(20, "20 gwei (standard)"),
-        #(50, "50 gwei (fast)"),
-        #(100, "100 gwei (very fast)"),
-      ]
+  // Common gas prices in gwei
+  let gas_prices = [
+    #(10, "10 gwei (slow)"),
+    #(20, "20 gwei (standard)"),
+    #(50, "50 gwei (fast)"),
+    #(100, "100 gwei (very fast)"),
+  ]
 
-      // Calculate costs
-      list.each(gas_prices, fn(price_info) {
-        let #(gwei, label) = price_info
-        let wei_cost = gas_units * gwei * 1_000_000_000
-        // Convert gwei to wei
-        let eth_cost = int.to_float(wei_cost) /. 1_000_000_000_000_000_000.0
-        // Convert wei to ETH
+  // Calculate costs
+  list.each(gas_prices, fn(price_info) {
+    let #(gwei, label) = price_info
+    let wei_cost = gas_units * gwei * 1_000_000_000
+    // Convert gwei to wei
+    let eth_cost = int.to_float(wei_cost) /. 1_000_000_000_000_000_000.0
+    // Convert wei to ETH
 
-        io.println("  " <> label <> ": " <> float.to_string(eth_cost) <> " ETH")
-      })
+    io.println("  " <> label <> ": " <> float.to_string(eth_cost) <> " ETH")
+  })
 }

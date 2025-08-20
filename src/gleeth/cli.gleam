@@ -22,6 +22,7 @@ pub type Command {
     address: String,
     topics: List(String),
   )
+  Wallet(wallet_args: List(String))
   Help
 }
 
@@ -89,6 +90,11 @@ pub fn parse_args(args: List(String)) -> Result(Args, rpc_types.GleethError) {
       )
       use rpc_url <- result.try(extract_rpc_url(remaining))
       Ok(Args(GetLogs(from_block, to_block, address, topics), rpc_url))
+    }
+
+    ["wallet", ..wallet_args] -> {
+      // Wallet commands don't require RPC URL
+      Ok(Args(Wallet(wallet_args), ""))
     }
 
     _ ->
@@ -190,7 +196,7 @@ fn extract_parameters_and_rpc_helper(
   parameters: List(String),
 ) -> #(List(String), List(String)) {
   case args {
-    ["--rpc-url", .._rest] -> #(list.reverse(parameters), args)
+    ["--rpc-url", ..] -> #(list.reverse(parameters), args)
     [param, ..rest] ->
       extract_parameters_and_rpc_helper(rest, [param, ..parameters])
     [] -> #(list.reverse(parameters), [])
@@ -470,5 +476,13 @@ pub fn show_help() -> Nil {
   )
   io.println(
     "  gleeth get-logs --address 0xA0b86a... --from-block 0x1000000 --rpc-url https://eth.llamarpc.com",
+  )
+  io.println("")
+  io.println("WALLET COMMANDS:")
+  io.println("  gleeth wallet create --private-key 0x1234...")
+  io.println("  gleeth wallet generate")
+  io.println("  gleeth wallet info --private-key 0x1234...")
+  io.println(
+    "  gleeth wallet sign --private-key 0x1234... --message 'Hello World'",
   )
 }

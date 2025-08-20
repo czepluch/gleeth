@@ -1,4 +1,5 @@
 import bigi.{type BigInt}
+import gleam/bit_array
 import gleam/float
 import gleam/int
 import gleam/list
@@ -201,5 +202,151 @@ pub fn is_valid_hex(hex_string: String) -> Bool {
   case hex_to_bigint(hex_string) {
     Ok(_) -> True
     Error(_) -> False
+  }
+}
+
+// Decode hex string to BitArray
+pub fn decode(hex_string: String) -> Result(BitArray, String) {
+  let clean_hex = case string.starts_with(hex_string, "0x") {
+    True -> string.drop_start(hex_string, 2)
+    False -> hex_string
+  }
+
+  case string.length(clean_hex) % 2 {
+    0 -> decode_hex_pairs(clean_hex)
+    _ -> Error("Hex string must have an even number of characters")
+  }
+}
+
+// Helper function to decode hex pairs to bytes
+fn decode_hex_pairs(hex: String) -> Result(BitArray, String) {
+  let chars = string.to_graphemes(hex)
+  use bytes <- result.try(decode_hex_chars_to_bytes(chars, []))
+  // Convert list of bytes to BitArray using bit syntax
+  let bit_pattern =
+    list.fold(bytes, <<>>, fn(acc, byte) { <<acc:bits, byte:8>> })
+  Ok(bit_pattern)
+}
+
+// Convert hex character pairs to bytes
+fn decode_hex_chars_to_bytes(
+  chars: List(String),
+  acc: List(Int),
+) -> Result(List(Int), String) {
+  case chars {
+    [] -> Ok(list.reverse(acc))
+    [high, low, ..rest] -> {
+      use high_val <- result.try(
+        char_to_hex_value(high)
+        |> result.map_error(fn(_) { "Invalid hex character: " <> high }),
+      )
+      use low_val <- result.try(
+        char_to_hex_value(low)
+        |> result.map_error(fn(_) { "Invalid hex character: " <> low }),
+      )
+      let byte_val = high_val * 16 + low_val
+      decode_hex_chars_to_bytes(rest, [byte_val, ..acc])
+    }
+    [_] -> Error("Hex string must have an even number of characters")
+  }
+}
+
+// Encode BitArray to hex string with 0x prefix
+pub fn encode(data: BitArray) -> String {
+  "0x" <> bit_array.base16_encode(data) |> string.lowercase
+}
+
+// =============================================================================
+// Common Hex String Processing Functions
+// =============================================================================
+
+/// Remove 0x prefix from hex string if present
+pub fn strip_prefix(hex_string: String) -> String {
+  case string.starts_with(hex_string, "0x") {
+    True -> string.drop_start(hex_string, 2)
+    False -> hex_string
+  }
+}
+
+/// Add 0x prefix to hex string if not present
+pub fn ensure_prefix(hex_string: String) -> String {
+  case string.starts_with(hex_string, "0x") {
+    True -> hex_string
+    False -> "0x" <> hex_string
+  }
+}
+
+/// Normalize hex string to lowercase with 0x prefix
+pub fn normalize(hex_string: String) -> String {
+  let clean = strip_prefix(hex_string)
+  "0x" <> string.lowercase(clean)
+}
+
+/// Convert integer to hex string with 0x prefix
+pub fn from_int(value: Int) -> String {
+  "0x" <> int.to_base16(value) |> string.lowercase
+}
+
+/// Parse hex string to integer (with or without 0x prefix)
+pub fn to_int(hex_string: String) -> Result(Int, Nil) {
+  use bigint <- result.try(hex_to_bigint(hex_string))
+  bigi.to_int(bigint)
+}
+
+/// Validate that a string contains only valid hex characters (after stripping 0x)
+pub fn is_valid_hex_chars(hex_string: String) -> Bool {
+  let clean = strip_prefix(hex_string)
+  string.to_graphemes(clean) |> list.all(is_hex_char)
+}
+
+/// Check if a single character is a valid hex digit
+fn is_hex_char(char: String) -> Bool {
+  case char {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    "a" | "b" | "c" | "d" | "e" | "f" -> True
+    "A" | "B" | "C" | "D" | "E" | "F" -> True
+    _ -> False
+  }
+}
+
+/// Format a hex value with decimal equivalent for display
+pub fn format_with_decimal(hex_string: String) -> String {
+  case to_int(hex_string) {
+    Ok(decimal_value) ->
+      int.to_string(decimal_value) <> " (" <> normalize(hex_string) <> ")"
+    Error(_) -> normalize(hex_string)
+  }
+}
+
+/// Pad hex string to specified length (without 0x prefix)
+pub fn pad_left(hex_string: String, target_length: Int) -> String {
+  let clean = strip_prefix(hex_string)
+  let current_length = string.length(clean)
+  case current_length >= target_length {
+    True -> clean
+    False -> {
+      let padding_needed = target_length - current_length
+      let padding = string.repeat("0", padding_needed)
+      padding <> clean
+    }
+  }
+}
+
+/// Validate hex string has correct length for specific data types
+pub fn validate_length(
+  hex_string: String,
+  expected_bytes: Int,
+) -> Result(String, String) {
+  let clean = strip_prefix(hex_string)
+  let expected_chars = expected_bytes * 2
+  case string.length(clean) {
+    actual_chars if actual_chars == expected_chars -> Ok(clean)
+    actual_chars ->
+      Error(
+        "Expected "
+        <> int.to_string(expected_chars)
+        <> " hex characters, got "
+        <> int.to_string(actual_chars),
+      )
   }
 }

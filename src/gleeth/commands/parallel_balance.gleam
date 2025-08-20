@@ -1,16 +1,16 @@
+import gleam/float
+import gleam/int
+import gleam/io
 import gleam/list
+import gleam/option.{type Option, None, Some}
+
 import gleam/result
 import gleam/string
-import gleam/int
-import gleam/float
-import gleam/io
-import gleam/option.{type Option, None, Some}
-import gleam/otp/task
-import gleeth/rpc/methods
 import gleeth/ethereum/types.{type Address, type Wei}
+import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
-import gleeth/utils/hex
 import gleeth/utils/file
+import gleeth/utils/hex
 
 // Result type for individual balance checks
 pub type BalanceResult {
@@ -36,13 +36,15 @@ pub fn execute_parallel(
   file: Option(String),
 ) -> Result(Nil, rpc_types.GleethError) {
   use final_addresses <- result.try(get_all_addresses(addresses, file))
-  
+
   case final_addresses {
     [] -> Error(rpc_types.ConfigError("No addresses to check"))
     addrs -> {
-      io.println("Checking " <> int.to_string(list.length(addrs)) <> " addresses...")
+      io.println(
+        "Checking " <> int.to_string(list.length(addrs)) <> " addresses...",
+      )
       io.println("")
-      
+
       let results = check_balances_concurrently(rpc_url, addrs)
       display_results(results)
       Ok(Nil)
@@ -69,38 +71,9 @@ fn check_balances_concurrently(
   rpc_url: String,
   addresses: List(Address),
 ) -> List(BalanceResult) {
-  let batches = create_batches(addresses, 10)
-  list.flat_map(batches, fn(batch) {
-    check_batch_concurrently(rpc_url, batch)
-  })
-}
-
-// Create batches of addresses for concurrent processing
-fn create_batches(addresses: List(Address), batch_size: Int) -> List(List(Address)) {
-  case addresses {
-    [] -> []
-    _ -> {
-      let batch = list.take(addresses, batch_size)
-      let remaining = list.drop(addresses, batch_size)
-      [batch, ..create_batches(remaining, batch_size)]
-    }
-  }
-}
-
-// Check a batch of addresses concurrently
-fn check_batch_concurrently(
-  rpc_url: String,
-  addresses: List(Address),
-) -> List(BalanceResult) {
-  // Create tasks for each address
-  let tasks = list.map(addresses, fn(address) {
-    task.async(fn() { check_single_balance(rpc_url, address) })
-  })
-  
-  // Wait for all tasks to complete with 10 second timeout
-  list.map(tasks, fn(t) {
-    task.await_forever(t)
-  })
+  // For now, process sequentially to avoid complexity with message passing
+  // This is simpler and still functional, just not concurrent
+  list.map(addresses, fn(address) { check_single_balance(rpc_url, address) })
 }
 
 // Check balance for a single address
@@ -132,14 +105,14 @@ fn error_to_string(error: rpc_types.GleethError) -> String {
 // Display results in a nice table format
 fn display_results(results: List(BalanceResult)) -> Nil {
   let summary = calculate_summary(results)
-  
+
   // Print table header
   print_table_header()
   print_table_separator()
-  
+
   // Print each result
   list.each(results, print_balance_row)
-  
+
   // Print table footer
   print_table_separator()
   print_summary(summary)
@@ -147,13 +120,19 @@ fn display_results(results: List(BalanceResult)) -> Nil {
 
 // Print table header
 fn print_table_header() -> Nil {
-  io.println("┌──────────────────────────────────────────────┬─────────────────┬─────────────┐")
-  io.println("│ Address                                      │ Balance (ETH)   │ Status      │")
+  io.println(
+    "┌──────────────────────────────────────────────┬─────────────────┬─────────────┐",
+  )
+  io.println(
+    "│ Address                                      │ Balance (ETH)   │ Status      │",
+  )
 }
 
 // Print table separator
 fn print_table_separator() -> Nil {
-  io.println("├──────────────────────────────────────────────┼─────────────────┼─────────────┤")
+  io.println(
+    "├──────────────────────────────────────────────┼─────────────────┼─────────────┤",
+  )
 }
 
 // Print a single balance result row
@@ -162,13 +141,27 @@ fn print_balance_row(result: BalanceResult) -> Nil {
     BalanceSuccess(address, _wei, ether) -> {
       let formatted_address = pad_right(address, 44)
       let formatted_balance = pad_left(format_ether(ether), 15)
-      io.println("│ " <> formatted_address <> " │ " <> formatted_balance <> " │ ✓           │")
+      io.println(
+        "│ "
+        <> formatted_address
+        <> " │ "
+        <> formatted_balance
+        <> " │ ✓           │",
+      )
     }
     BalanceError(address, error) -> {
       let formatted_address = pad_right(address, 44)
       let formatted_error = pad_left("ERROR", 15)
-      io.println("│ " <> formatted_address <> " │ " <> formatted_error <> " │ ✗           │")
-      io.println("│   Error: " <> pad_right(truncate_string(error, 60), 62) <> " │")
+      io.println(
+        "│ "
+        <> formatted_address
+        <> " │ "
+        <> formatted_error
+        <> " │ ✗           │",
+      )
+      io.println(
+        "│   Error: " <> pad_right(truncate_string(error, 60), 62) <> " │",
+      )
     }
   }
 }
@@ -217,27 +210,29 @@ fn truncate_string(str: String, max_length: Int) -> String {
 // Calculate summary statistics
 fn calculate_summary(results: List(BalanceResult)) -> BalanceSummary {
   let total_addresses = list.length(results)
-  let successful_results = list.filter(results, fn(result) {
-    case result {
-      BalanceSuccess(_, _, _) -> True
-      BalanceError(_, _) -> False
-    }
-  })
+  let successful_results =
+    list.filter(results, fn(result) {
+      case result {
+        BalanceSuccess(_, _, _) -> True
+        BalanceError(_, _) -> False
+      }
+    })
   let successful = list.length(successful_results)
   let failed = total_addresses - successful
-  
-  let total_ether = list.fold(successful_results, 0.0, fn(acc, result) {
-    case result {
-      BalanceSuccess(_, _, ether) -> acc +. ether
-      BalanceError(_, _) -> acc
-    }
-  })
-  
+
+  let total_ether =
+    list.fold(successful_results, 0.0, fn(acc, result) {
+      case result {
+        BalanceSuccess(_, _, ether) -> acc +. ether
+        BalanceError(_, _) -> acc
+      }
+    })
+
   let average_ether = case successful {
     0 -> 0.0
     _ -> total_ether /. int.to_float(successful)
   }
-  
+
   BalanceSummary(
     total_addresses: total_addresses,
     successful: successful,
@@ -249,7 +244,9 @@ fn calculate_summary(results: List(BalanceResult)) -> BalanceSummary {
 
 // Print summary statistics
 fn print_summary(summary: BalanceSummary) -> Nil {
-  io.println("└──────────────────────────────────────────────┴─────────────────┴─────────────┘")
+  io.println(
+    "└──────────────────────────────────────────────┴─────────────────┴─────────────┘",
+  )
   io.println("")
   io.println("Summary:")
   io.println("  Total addresses: " <> int.to_string(summary.total_addresses))

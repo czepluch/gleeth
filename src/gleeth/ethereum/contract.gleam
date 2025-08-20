@@ -3,7 +3,9 @@ import gleam/list
 import gleam/result
 import gleam/string
 import gleeth/crypto/keccak
+
 import gleeth/rpc/types as rpc_types
+import gleeth/utils/hex
 
 // Supported parameter types for contract calls
 pub type ParamType {
@@ -91,16 +93,16 @@ fn encode_single_parameter(
 // Encode uint256 parameter (pad to 32 bytes)
 fn encode_uint256(value: String) -> Result(String, rpc_types.GleethError) {
   // Handle hex values vs decimal
-  let hex_value = case string.starts_with(value, "0x") {
-    True -> string.drop_start(value, 2)
-    False -> {
-      // Convert decimal to hex
+  let hex_value = case hex.strip_prefix(value) {
+    clean_hex if clean_hex == value -> {
+      // No 0x prefix, could be decimal
       case int.parse(value) {
         Ok(int_val) -> int_to_hex(int_val)
         Error(_) -> value
         // Assume it's already hex without 0x prefix
       }
     }
+    clean_hex -> clean_hex
   }
 
   // Pad to 64 hex characters (32 bytes)
@@ -110,10 +112,7 @@ fn encode_uint256(value: String) -> Result(String, rpc_types.GleethError) {
 
 // Encode address parameter (pad to 32 bytes)
 fn encode_address(value: String) -> Result(String, rpc_types.GleethError) {
-  let clean_address = case string.starts_with(value, "0x") {
-    True -> string.drop_start(value, 2)
-    False -> value
-  }
+  let clean_address = hex.strip_prefix(value)
 
   // Validate address length
   case string.length(clean_address) {
@@ -140,10 +139,7 @@ fn encode_bool(value: String) -> Result(String, rpc_types.GleethError) {
 
 // Encode bytes32 parameter
 fn encode_bytes32(value: String) -> Result(String, rpc_types.GleethError) {
-  let clean_value = case string.starts_with(value, "0x") {
-    True -> string.drop_start(value, 2)
-    False -> value
-  }
+  let clean_value = hex.strip_prefix(value)
 
   case string.length(clean_value) {
     64 -> Ok(clean_value)
@@ -166,9 +162,9 @@ pub fn build_call_data(
   use encoded_params <- result.try(encode_parameters(contract_call.parameters))
 
   // Remove 0x prefix from selector for concatenation
-  let clean_selector = string.drop_start(selector, 2)
+  let clean_selector = hex.strip_prefix(selector)
 
-  Ok("0x" <> clean_selector <> encoded_params)
+  Ok(hex.ensure_prefix(clean_selector <> encoded_params))
 }
 
 // Parse parameter string into Parameter type

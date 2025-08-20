@@ -1,7 +1,10 @@
+import gleam/int
 import gleam/io
 import gleam/string
 
-import gleeth/ethereum/types.{type Address, type Hash, type BlockNumber, type Wei}
+import gleeth/ethereum/types.{
+  type Address, type BlockNumber, type Hash, type Wei,
+}
 import gleeth/utils/hex
 
 // Format Wei to Ether with proper decimal places
@@ -48,14 +51,64 @@ pub fn print_transaction_hash(hash: Hash) -> Nil {
   io.println("Transaction: " <> format_hash(hash))
 }
 
-
-
 // Display error in user-friendly format
 pub fn print_error(error: String) -> Nil {
   io.println("Error: " <> error)
 }
 
-// Display success message
+// =============================================================================
+// Common Display Functions
+// =============================================================================
+
+/// Format hex value with decimal equivalent for display
+pub fn format_hex_with_decimal(hex_value: String, label: String) -> Nil {
+  case hex.to_int(hex_value) {
+    Ok(decimal_value) ->
+      io.println(
+        "  "
+        <> label
+        <> ": "
+        <> int.to_string(decimal_value)
+        <> " ("
+        <> hex.normalize(hex_value)
+        <> ")",
+      )
+    Error(_) -> io.println("  " <> label <> ": " <> hex.normalize(hex_value))
+  }
+}
+
+/// Print a labeled value
+pub fn print_labeled_value(label: String, value: String) -> Nil {
+  io.println("  " <> label <> ": " <> value)
+}
+
+/// Print a section header
+pub fn print_section(title: String) -> Nil {
+  io.println("")
+  io.println(title <> ":")
+}
+
+/// Print success message with emoji
 pub fn print_success(message: String) -> Nil {
-  io.println("✓ " <> message)
+  io.println("✅ " <> message)
+}
+
+/// Print warning message with emoji
+pub fn print_warning(message: String) -> Nil {
+  io.println("⚠️  " <> message)
+}
+
+/// Print info message with emoji
+pub fn print_info(message: String) -> Nil {
+  io.println("📋 " <> message)
+}
+
+/// Format address for display (ensure 0x prefix and lowercase)
+pub fn display_address(address: String) -> String {
+  hex.normalize(address)
+}
+
+/// Format hash for display (ensure 0x prefix and lowercase)
+pub fn display_hash(hash: String) -> String {
+  hex.normalize(hash)
 }
