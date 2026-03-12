@@ -265,12 +265,149 @@ pub fn verify_signature(
 
 /// Recover the public key from a signature and message hash
 pub fn recover_public_key(
-  _message_hash: BitArray,
-  _signature: Signature,
+  message_hash: BitArray,
+  signature: Signature,
 ) -> Result(PublicKey, String) {
-  // Note: This would require additional secp256k1 functionality
-  // For now, return an error indicating it's not implemented
-  Error("Public key recovery not yet implemented")
+  let Signature(r: r, s: s, recovery_id: recovery_id) = signature
+
+  case recover_internal(message_hash, r, s, recovery_id) {
+    Ok(public_key_bytes) -> Ok(PublicKey(public_key_bytes))
+    Error(err) -> Error("Failed to recover public key: " <> string.inspect(err))
+  }
+}
+
+/// Recover multiple public key candidates (all 4 possible recovery IDs)
+/// This is useful when the recovery ID is unknown or needs to be determined
+pub fn recover_public_key_candidates(
+  message_hash: BitArray,
+  r: BitArray,
+  s: BitArray,
+) -> Result(List(PublicKey), String) {
+  let recovery_ids = [0, 1, 2, 3]
+
+  recover_candidates_helper(message_hash, r, s, recovery_ids, [])
+}
+
+/// Helper function to recover candidates for each recovery ID
+fn recover_candidates_helper(
+  message_hash: BitArray,
+  r: BitArray,
+  s: BitArray,
+  recovery_ids: List(Int),
+  acc: List(PublicKey),
+) -> Result(List(PublicKey), String) {
+  case recovery_ids {
+    [] -> Ok(acc)
+    [recovery_id, ..rest] -> {
+      case recover_internal(message_hash, r, s, recovery_id) {
+        Ok(public_key_bytes) -> {
+          let public_key = PublicKey(public_key_bytes)
+          recover_candidates_helper(message_hash, r, s, rest, [
+            public_key,
+            ..acc
+          ])
+        }
+        Error(_) -> {
+          // Skip invalid recovery IDs and continue with others
+          recover_candidates_helper(message_hash, r, s, rest, acc)
+        }
+      }
+    }
+  }
+}
+
+/// Recover Ethereum address directly from signature and message hash
+pub fn recover_address(
+  message_hash: BitArray,
+  signature: Signature,
+) -> Result(EthereumAddress, String) {
+  use public_key <- result.try(recover_public_key(message_hash, signature))
+  public_key_to_address(public_key)
+}
+
+/// Recover multiple address candidates (all possible recovery IDs)
+pub fn recover_address_candidates(
+  message_hash: BitArray,
+  r: BitArray,
+  s: BitArray,
+) -> Result(List(EthereumAddress), String) {
+  use public_keys <- result.try(recover_public_key_candidates(
+    message_hash,
+    r,
+    s,
+  ))
+
+  convert_keys_to_addresses(public_keys, [])
+}
+
+/// Helper to convert public keys to addresses
+fn convert_keys_to_addresses(
+  public_keys: List(PublicKey),
+  acc: List(EthereumAddress),
+) -> Result(List(EthereumAddress), String) {
+  case public_keys {
+    [] -> Ok(acc)
+    [public_key, ..rest] -> {
+      case public_key_to_address(public_key) {
+        Ok(address) -> convert_keys_to_addresses(rest, [address, ..acc])
+        Error(err) -> Error(err)
+      }
+    }
+  }
+}
+
+/// Verify signature recovery by checking if recovered address matches expected
+pub fn verify_signature_recovery(
+  message_hash: BitArray,
+  signature: Signature,
+  expected_address: String,
+) -> Result(Bool, String) {
+  use recovered_address <- result.try(recover_address(message_hash, signature))
+  let recovered_address_str = address_to_string(recovered_address)
+
+  // Compare addresses (case-insensitive)
+  let expected_lower = string.lowercase(expected_address)
+  let recovered_lower = string.lowercase(recovered_address_str)
+
+  Ok(expected_lower == recovered_lower)
+}
+
+/// Find the correct recovery ID for a given signature and expected address
+/// This is useful when you have r,s components but need to determine the recovery ID
+pub fn find_recovery_id(
+  message_hash: BitArray,
+  r: BitArray,
+  s: BitArray,
+  expected_address: String,
+) -> Result(Int, String) {
+  let recovery_ids = [0, 1, 2, 3]
+
+  find_recovery_id_helper(message_hash, r, s, expected_address, recovery_ids)
+}
+
+/// Helper function to find the correct recovery ID
+fn find_recovery_id_helper(
+  message_hash: BitArray,
+  r: BitArray,
+  s: BitArray,
+  expected_address: String,
+  recovery_ids: List(Int),
+) -> Result(Int, String) {
+  case recovery_ids {
+    [] -> Error("No valid recovery ID found for the expected address")
+    [recovery_id, ..rest] -> {
+      let signature = Signature(r: r, s: s, recovery_id: recovery_id)
+      case
+        verify_signature_recovery(message_hash, signature, expected_address)
+      {
+        Ok(True) -> Ok(recovery_id)
+        Ok(False) ->
+          find_recovery_id_helper(message_hash, r, s, expected_address, rest)
+        Error(_) ->
+          find_recovery_id_helper(message_hash, r, s, expected_address, rest)
+      }
+    }
+  }
 }
 
 // =============================================================================
@@ -297,6 +434,57 @@ pub fn is_valid_private_key(private_key: PrivateKey) -> Bool {
 /// This is a placeholder implementation - in production, use proper cryptographic randomness
 pub fn generate_private_key() -> Result(PrivateKey, String) {
   Error("Random private key generation not implemented - use external source")
+}
+
+// =============================================================================
+// Recovery Functions - External FFI Calls
+// =============================================================================
+
+/// External call to ExSecp256k1.recover function
+@external(erlang, "Elixir.ExSecp256k1", "recover")
+fn recover_internal(
+  message_hash: BitArray,
+  r: BitArray,
+  s: BitArray,
+  recovery_id: Int,
+) -> Result(BitArray, atom)
+
+/// External call to ExSecp256k1.recover_compact function
+@external(erlang, "Elixir.ExSecp256k1", "recover_compact")
+fn recover_compact_internal(
+  message_hash: BitArray,
+  signature: BitArray,
+  recovery_id: Int,
+) -> Result(BitArray, atom)
+
+/// Recover public key from compact signature format
+pub fn recover_public_key_compact(
+  message_hash: BitArray,
+  compact_signature: BitArray,
+  recovery_id: Int,
+) -> Result(PublicKey, String) {
+  case recover_compact_internal(message_hash, compact_signature, recovery_id) {
+    Ok(public_key_bytes) -> Ok(PublicKey(public_key_bytes))
+    Error(err) ->
+      Error(
+        "Failed to recover public key from compact signature: "
+        <> string.inspect(err),
+      )
+  }
+}
+
+/// Recover address from compact signature format
+pub fn recover_address_compact(
+  message_hash: BitArray,
+  compact_signature: BitArray,
+  recovery_id: Int,
+) -> Result(EthereumAddress, String) {
+  use public_key <- result.try(recover_public_key_compact(
+    message_hash,
+    compact_signature,
+    recovery_id,
+  ))
+  public_key_to_address(public_key)
 }
 // =============================================================================
 // Internal Functions

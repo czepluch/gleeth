@@ -1,4 +1,5 @@
 import gleam/result
+import gleeth/crypto/random
 import gleeth/crypto/secp256k1
 
 /// Represents an Ethereum wallet with private key and derived address
@@ -63,29 +64,28 @@ pub fn from_private_key_bytes(bytes: BitArray) -> Result(Wallet, WalletError) {
   Ok(Wallet(private_key: private_key, public_key: public_key, address: address))
 }
 
-/// Generate a new random wallet
-/// This is a placeholder - in production, use proper cryptographic randomness
+/// Generate a new random wallet using cryptographically secure randomness
 pub fn generate() -> Result(Wallet, WalletError) {
-  case secp256k1.generate_private_key() {
-    Ok(private_key) -> {
-      use public_key <- result.try(
-        secp256k1.create_public_key(private_key)
-        |> result.map_error(KeyGenerationFailed),
+  use private_key <- result.try(
+    random.generate_private_key()
+    |> result.map_error(fn(err) {
+      KeyGenerationFailed(
+        "Failed to generate secure private key: " <> random.error_to_string(err),
       )
+    }),
+  )
 
-      use address <- result.try(
-        secp256k1.public_key_to_address(public_key)
-        |> result.map_error(KeyGenerationFailed),
-      )
+  use public_key <- result.try(
+    secp256k1.create_public_key(private_key)
+    |> result.map_error(KeyGenerationFailed),
+  )
 
-      Ok(Wallet(
-        private_key: private_key,
-        public_key: public_key,
-        address: address,
-      ))
-    }
-    Error(msg) -> Error(KeyGenerationFailed(msg))
-  }
+  use address <- result.try(
+    secp256k1.public_key_to_address(public_key)
+    |> result.map_error(KeyGenerationFailed),
+  )
+
+  Ok(Wallet(private_key: private_key, public_key: public_key, address: address))
 }
 
 // =============================================================================
