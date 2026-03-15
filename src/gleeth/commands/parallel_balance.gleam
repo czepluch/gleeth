@@ -1,3 +1,4 @@
+import gleam/erlang/process
 import gleam/float
 import gleam/int
 import gleam/io
@@ -66,14 +67,52 @@ fn get_all_addresses(
   }
 }
 
-// Check balances concurrently with a limit of 10 concurrent requests
+// Check balances concurrently, batched into groups of 10 to avoid
+// overwhelming the RPC node
 fn check_balances_concurrently(
   rpc_url: String,
   addresses: List(Address),
 ) -> List(BalanceResult) {
-  // For now, process sequentially to avoid complexity with message passing
-  // This is simpler and still functional, just not concurrent
-  list.map(addresses, fn(address) { check_single_balance(rpc_url, address) })
+  addresses
+  |> list.sized_chunk(10)
+  |> list.flat_map(fn(batch) { check_batch_concurrently(rpc_url, batch) })
+}
+
+// Spawn a process for each address in the batch, collect all results
+fn check_batch_concurrently(
+  rpc_url: String,
+  addresses: List(Address),
+) -> List(BalanceResult) {
+  let subject = process.new_subject()
+  let batch_size = list.length(addresses)
+
+  // Spawn one process per address, each sends its result back on the subject
+  list.each(addresses, fn(address) {
+    process.spawn(fn() {
+      let result = check_single_balance(rpc_url, address)
+      process.send(subject, result)
+    })
+  })
+
+  // Collect all results (30 second timeout per result)
+  collect_results(subject, batch_size, [])
+}
+
+// Receive exactly `remaining` results from the subject
+fn collect_results(
+  subject: process.Subject(BalanceResult),
+  remaining: Int,
+  acc: List(BalanceResult),
+) -> List(BalanceResult) {
+  case remaining {
+    0 -> list.reverse(acc)
+    n -> {
+      case process.receive(subject, 30_000) {
+        Ok(result) -> collect_results(subject, n - 1, [result, ..acc])
+        Error(Nil) -> list.reverse(acc)
+      }
+    }
+  }
 }
 
 // Check balance for a single address
