@@ -1,11 +1,11 @@
-import gleam/bit_array
 import gleam/int
 import gleam/list
 import gleam/result
 import gleam/string
 import gleeth/crypto/keccak
-import gleeth/crypto/secp256k1
 import gleeth/crypto/wallet
+import gleeth/encoding/rlp
+import gleeth/utils/hex
 
 /// Represents an Ethereum transaction before signing
 pub type UnsignedTransaction {
@@ -91,7 +91,6 @@ pub type TransactionError {
   InvalidData(String)
   SigningFailed(String)
   EncodingFailed(String)
-  RlpEncodingNotImplemented
 }
 
 // =============================================================================
@@ -173,17 +172,14 @@ pub fn create_contract_call(
 // Transaction Signing
 // =============================================================================
 
-/// Sign a transaction with a wallet
-/// Note: This is a simplified implementation that doesn't use proper RLP encoding
-/// In production, you would need a proper RLP encoder for Ethereum transactions
+/// Sign a legacy (EIP-155) transaction with a wallet.
+/// Produces an RLP-encoded raw transaction suitable for eth_sendRawTransaction.
 pub fn sign_transaction(
   transaction: UnsignedTransaction,
   wallet: wallet.Wallet,
 ) -> Result(SignedTransaction, TransactionError) {
-  // Create the transaction hash for signing
-  use signing_hash <- result.try(create_signing_hash(transaction))
+  let signing_hash = create_signing_hash(transaction)
 
-  // Sign the hash
   use signature <- result.try(
     wallet.sign_hash(wallet, signing_hash)
     |> result.map_error(fn(err) {
@@ -193,21 +189,14 @@ pub fn sign_transaction(
     }),
   )
 
-  // Extract v, r, s from signature
-  let #(v_int, r_hex, s_hex) = secp256k1.signature_to_vrs(signature)
+  // EIP-155: v = recovery_id + 2 * chain_id + 35
+  let eip155_v = signature.recovery_id + 2 * transaction.chain_id + 35
+  let v_hex = "0x" <> string.lowercase(int.to_base16(eip155_v))
+  let r_hex = hex.encode(signature.r)
+  let s_hex = hex.encode(signature.s)
 
-  // For EIP-155 (replay protection), v = recovery_id + 2 * chain_id + 35
-  let eip155_v = case transaction.chain_id {
-    1 -> v_int + 2 * transaction.chain_id + 35
-    // Mainnet and other networks
-    _ -> v_int + 2 * transaction.chain_id + 35
-  }
-
-  let v_hex = "0x" <> int.to_base16(eip155_v) |> string.lowercase
-
-  // Create raw transaction (placeholder - would need proper RLP encoding)
   let raw_tx =
-    create_raw_transaction_placeholder(transaction, v_hex, r_hex, s_hex)
+    create_raw_transaction(transaction, eip155_v, signature.r, signature.s)
 
   Ok(SignedTransaction(
     to: transaction.to,
@@ -225,52 +214,63 @@ pub fn sign_transaction(
 }
 
 // =============================================================================
-// Transaction Hashing
+// Transaction Encoding
 // =============================================================================
 
-/// Create the hash that needs to be signed for a transaction
-/// This is a simplified version - proper implementation would use RLP encoding
-fn create_signing_hash(
-  transaction: UnsignedTransaction,
-) -> Result(BitArray, TransactionError) {
-  // For EIP-155 transactions, we include chain_id in the signing hash
-  // Format: RLP([nonce, gasPrice, gasLimit, to, value, data, chainId, 0, 0])
-  // This is a simplified concatenation - proper implementation needs RLP
-
-  let chain_id_hex = "0x" <> int.to_base16(transaction.chain_id)
-
-  let signing_data =
-    transaction.nonce
-    <> transaction.gas_price
-    <> transaction.gas_limit
-    <> transaction.to
-    <> transaction.value
-    <> transaction.data
-    <> chain_id_hex
-    <> "0x"
-    <> "0x"
-
-  let signing_bytes = bit_array.from_string(signing_data)
-  let hash = keccak.keccak256_binary(signing_bytes)
-
-  Ok(hash)
+/// EIP-155 signing hash: keccak256(RLP([nonce, gasPrice, gasLimit, to, value, data, chainId, 0, 0]))
+fn create_signing_hash(transaction: UnsignedTransaction) -> BitArray {
+  let items =
+    rlp.RlpList([
+      rlp.encode_hex_field(transaction.nonce),
+      rlp.encode_hex_field(transaction.gas_price),
+      rlp.encode_hex_field(transaction.gas_limit),
+      encode_raw_hex(transaction.to),
+      rlp.encode_hex_field(transaction.value),
+      encode_raw_hex(transaction.data),
+      rlp.encode_int(transaction.chain_id),
+      rlp.encode_int(0),
+      rlp.encode_int(0),
+    ])
+  keccak.keccak256_binary(rlp.encode(items))
 }
 
-// =============================================================================
-// Raw Transaction Creation
-// =============================================================================
-
-/// Create a raw transaction string (placeholder implementation)
-/// In production, this would use proper RLP encoding
-fn create_raw_transaction_placeholder(
-  _transaction: UnsignedTransaction,
-  v: String,
-  r: String,
-  s: String,
+/// RLP-encode the signed transaction: [nonce, gasPrice, gasLimit, to, value, data, v, r, s]
+fn create_raw_transaction(
+  transaction: UnsignedTransaction,
+  v: Int,
+  r: BitArray,
+  s: BitArray,
 ) -> String {
-  // This is a placeholder that doesn't create a valid raw transaction
-  // Proper implementation would need RLP encoding library
-  "0x" <> "PLACEHOLDER_RAW_TRANSACTION_" <> v <> r <> s
+  let items =
+    rlp.RlpList([
+      rlp.encode_hex_field(transaction.nonce),
+      rlp.encode_hex_field(transaction.gas_price),
+      rlp.encode_hex_field(transaction.gas_limit),
+      encode_raw_hex(transaction.to),
+      rlp.encode_hex_field(transaction.value),
+      encode_raw_hex(transaction.data),
+      rlp.encode_int(v),
+      rlp.RlpBytes(strip_leading_zeros(r)),
+      rlp.RlpBytes(strip_leading_zeros(s)),
+    ])
+  hex.encode(rlp.encode(items))
+}
+
+/// Encode a hex string as raw bytes without stripping leading zeros.
+/// Used for address and data fields which are byte strings, not integers.
+fn encode_raw_hex(hex_string: String) -> rlp.RlpItem {
+  case hex.decode(hex_string) {
+    Ok(bytes) -> rlp.RlpBytes(bytes)
+    Error(_) -> rlp.RlpBytes(<<>>)
+  }
+}
+
+/// Strip leading zero bytes for minimal big-endian integer encoding
+fn strip_leading_zeros(data: BitArray) -> BitArray {
+  case data {
+    <<0:8, rest:bits>> -> strip_leading_zeros(rest)
+    _ -> data
+  }
 }
 
 // =============================================================================
@@ -428,9 +428,10 @@ pub fn signed_transaction_to_string(tx: SignedTransaction) -> String {
 
 /// Get transaction hash from signed transaction
 pub fn get_transaction_hash(tx: SignedTransaction) -> String {
-  // This would normally hash the RLP-encoded transaction
-  // For now, return a placeholder
-  keccak.keccak256_hex(tx.raw_transaction)
+  case hex.decode(tx.raw_transaction) {
+    Ok(raw_bytes) -> hex.encode(keccak.keccak256_binary(raw_bytes))
+    Error(_) -> ""
+  }
 }
 
 /// Convert TransactionError to string
@@ -444,7 +445,6 @@ pub fn error_to_string(error: TransactionError) -> String {
     InvalidData(msg) -> "Invalid data: " <> msg
     SigningFailed(msg) -> "Signing failed: " <> msg
     EncodingFailed(msg) -> "Encoding failed: " <> msg
-    RlpEncodingNotImplemented -> "RLP encoding not yet implemented"
   }
 }
 
