@@ -101,19 +101,7 @@ pub fn verify_function_selector(signature: String, expected: String) -> Bool {
 
 /// Hash binary data using keccak256
 pub fn keccak256_binary(data: BitArray) -> BitArray {
-  // Convert binary to string for hashing
-  // This assumes the binary data represents UTF-8 text
-  case bit_array.to_string(data) {
-    Ok(str) -> {
-      let input_bytes = bit_array.from_string(str)
-      hash_binary(input_bytes)
-    }
-    Error(_) -> {
-      // For non-UTF8 binary data, we need to handle it differently
-      // Hash the binary data directly
-      hash_binary(data)
-    }
-  }
+  hash_binary(data)
 }
 
 /// Hash string data to binary using keccak256

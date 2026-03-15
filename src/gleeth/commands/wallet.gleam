@@ -3,6 +3,7 @@ import gleam/int
 import gleam/io
 import gleam/result
 import gleam/string
+import gleeth/crypto/keccak
 import gleeth/crypto/secp256k1
 import gleeth/crypto/wallet
 import gleeth/ethereum/formatting
@@ -203,7 +204,7 @@ fn handle_verify_message(
   let prefix = "\\x19Ethereum Signed Message:\\n" <> message_length
   let prefix_bytes = bit_array.from_string(prefix)
   let full_message = bit_array.append(prefix_bytes, message_bytes)
-  let message_hash = gleeth_crypto_keccak_keccak256_binary(full_message)
+  let message_hash = keccak.keccak256_binary(full_message)
 
   // Verify signature
   use is_valid <- result.try(secp256k1.verify_signature(
@@ -260,10 +261,6 @@ fn parse_signature_hex(
 
   Ok(secp256k1.Signature(r: r_bytes, s: s_bytes, recovery_id: v_int))
 }
-
-/// External function to use keccak256
-@external(erlang, "Elixir.ExKeccak", "hash_256")
-fn gleeth_crypto_keccak_keccak256_binary(data: BitArray) -> BitArray
 
 /// Print formatted wallet information
 fn print_wallet_info(wallet_obj: wallet.Wallet) -> Nil {
