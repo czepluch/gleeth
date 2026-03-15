@@ -283,7 +283,7 @@ pub fn recovery_candidates_test() {
               case secp256k1.recover_public_key_candidates(message_hash, r, s) {
                 Ok(candidates) -> {
                   // Should have at least one candidate
-                  { list.length(candidates) > 0 } |> should.be_true()
+                  { candidates != [] } |> should.be_true()
 
                   // One of the candidates should match our original key
                   let original_hex =
