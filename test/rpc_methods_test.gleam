@@ -15,22 +15,19 @@ pub fn main() {
 // ---------------------------------------------------------------------------
 
 pub fn decode_block_number_response_test() {
-  let body =
-    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x134a1b0\"}"
+  let body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x134a1b0\"}"
   let result = response_utils.decode_rpc_response(body, decode.string)
   should.equal(result, Ok("0x134a1b0"))
 }
 
 pub fn decode_balance_response_test() {
-  let body =
-    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x1bc16d674ec80000\"}"
+  let body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x1bc16d674ec80000\"}"
   let result = response_utils.decode_rpc_response(body, decode.string)
   should.equal(result, Ok("0x1bc16d674ec80000"))
 }
 
 pub fn decode_empty_code_response_test() {
-  let body =
-    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x\"}"
+  let body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x\"}"
   let result = response_utils.decode_rpc_response(body, decode.string)
   should.equal(result, Ok("0x"))
 }
@@ -51,8 +48,7 @@ pub fn decode_rpc_error_response_test() {
 }
 
 pub fn decode_null_result_fails_for_string_test() {
-  let body =
-    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}"
+  let body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}"
   let result = response_utils.decode_rpc_response(body, decode.string)
   case result {
     Error(rpc_types.ParseError(_)) -> should.be_true(True)
@@ -231,7 +227,10 @@ pub fn decode_logs_list_test() {
   let body =
     "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[{\"address\":\"0xaaaa\",\"topics\":[\"0xtopic1\"],\"data\":\"0xdata\",\"blockNumber\":\"0x1\",\"transactionHash\":\"0xth1\",\"transactionIndex\":\"0x0\",\"blockHash\":\"0xbh1\",\"logIndex\":\"0x0\",\"removed\":false},{\"address\":\"0xbbbb\",\"topics\":[],\"data\":\"0x\",\"blockNumber\":\"0x2\",\"transactionHash\":\"0xth2\",\"transactionIndex\":\"0x1\",\"blockHash\":\"0xbh2\",\"logIndex\":\"0x1\",\"removed\":true}]}"
   let result =
-    response_utils.decode_rpc_response(body, decode.list(log_decoder_for_test()))
+    response_utils.decode_rpc_response(
+      body,
+      decode.list(log_decoder_for_test()),
+    )
   case result {
     Ok(logs) -> {
       should.equal(list.length(logs), 2)
@@ -251,10 +250,12 @@ pub fn decode_logs_list_test() {
 }
 
 pub fn decode_empty_logs_list_test() {
-  let body =
-    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[]}"
+  let body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[]}"
   let result =
-    response_utils.decode_rpc_response(body, decode.list(log_decoder_for_test()))
+    response_utils.decode_rpc_response(
+      body,
+      decode.list(log_decoder_for_test()),
+    )
   should.equal(result, Ok([]))
 }
 
@@ -271,7 +272,11 @@ fn nullable_string() -> decode.Decoder(String) {
 
 fn transaction_decoder_for_test() -> decode.Decoder(eth_types.Transaction) {
   use hash <- decode.field("hash", decode.string)
-  use block_number <- decode.optional_field("blockNumber", "", nullable_string())
+  use block_number <- decode.optional_field(
+    "blockNumber",
+    "",
+    nullable_string(),
+  )
   use block_hash <- decode.optional_field("blockHash", "", nullable_string())
   use transaction_index <- decode.optional_field(
     "transactionIndex",
