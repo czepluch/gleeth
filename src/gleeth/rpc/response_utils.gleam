@@ -1,55 +1,74 @@
+import gleam/dynamic/decode
 import gleam/json
+import gleam/option.{type Option, None, Some}
 import gleam/result
-import gleam/string
 import gleeth/rpc/client
 import gleeth/rpc/types as rpc_types
 
-// Extract and clean a string result from a JSON-RPC response
-// This eliminates the repeated pattern across multiple RPC methods
-pub fn extract_string_result(
-  response: json.Json,
-) -> Result(String, rpc_types.GleethError) {
-  // Extract the actual string value, removing quotes
-  let result_str = json.to_string(response)
-  let clean_result = case
-    string.starts_with(result_str, "\"") && string.ends_with(result_str, "\"")
-  {
-    True -> {
-      result_str
-      |> string.drop_start(1)
-      |> string.drop_end(1)
-    }
-    False -> result_str
+// Decode the JSON-RPC error message from a response body, if present.
+fn decode_rpc_error(body: String) -> Option(String) {
+  let error_decoder =
+    decode.at(["error", "message"], decode.optional(decode.string))
+
+  case json.parse(body, error_decoder) {
+    Ok(Some(msg)) -> Some(msg)
+    _ -> None
   }
-  Ok(clean_result)
 }
 
-// Make an RPC request and extract a string result
-// This combines the common pattern of make_request + extract_string_result
+// Decode a JSON-RPC response body using a decoder for the "result" field.
+// Checks for "error" first, then decodes "result".
+pub fn decode_rpc_response(
+  body: String,
+  result_decoder: decode.Decoder(a),
+) -> Result(a, rpc_types.GleethError) {
+  case decode_rpc_error(body) {
+    Some(msg) -> Error(rpc_types.RpcError("RPC Error: " <> msg))
+    None -> {
+      let envelope_decoder = decode.at(["result"], result_decoder)
+      case json.parse(body, envelope_decoder) {
+        Ok(value) -> Ok(value)
+        Error(json.UnableToDecode(_)) ->
+          Error(rpc_types.ParseError("Failed to decode RPC result"))
+        Error(json.UnexpectedEndOfInput) ->
+          Error(rpc_types.ParseError("Unexpected end of JSON input"))
+        Error(json.UnexpectedByte(b)) ->
+          Error(rpc_types.ParseError("Unexpected byte in JSON: " <> b))
+        Error(json.UnexpectedSequence(s)) ->
+          Error(rpc_types.ParseError("Unexpected sequence in JSON: " <> s))
+      }
+    }
+  }
+}
+
+// Make an RPC request and decode the result as a string.
+// Used for simple RPC methods that return a single hex string (block number, balance, etc.)
 pub fn make_string_request(
   rpc_url: String,
   method: rpc_types.EthMethod,
   params: List(json.Json),
 ) -> Result(String, rpc_types.GleethError) {
-  use response <- result.try(client.make_request(
+  use body <- result.try(client.make_request(
     rpc_url,
     rpc_types.method_to_string(method),
     params,
   ))
 
-  extract_string_result(response)
+  decode_rpc_response(body, decode.string)
 }
 
-// Make an RPC request and return the raw JSON response
-// For methods that need custom parsing (like transactions, receipts)
-pub fn make_json_request(
+// Make an RPC request and decode the result with a custom decoder.
+pub fn make_decoded_request(
   rpc_url: String,
   method: rpc_types.EthMethod,
   params: List(json.Json),
-) -> Result(json.Json, rpc_types.GleethError) {
-  client.make_request(
+  decoder: decode.Decoder(a),
+) -> Result(a, rpc_types.GleethError) {
+  use body <- result.try(client.make_request(
     rpc_url,
     rpc_types.method_to_string(method),
     params,
-  )
+  ))
+
+  decode_rpc_response(body, decoder)
 }

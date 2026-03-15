@@ -26,7 +26,10 @@ fn validate_rpc_url(url: String) -> Result(String, rpc_types.GleethError) {
     _ -> {
       case starts_with_http(url) {
         True -> Ok(url)
-        False -> Error(rpc_types.InvalidRpcUrl("RPC URL must start with http:// or https://"))
+        False ->
+          Error(rpc_types.InvalidRpcUrl(
+            "RPC URL must start with http:// or https://",
+          ))
       }
     }
   }

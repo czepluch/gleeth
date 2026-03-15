@@ -1,15 +1,15 @@
-import gleam/result
 import gleam/option.{type Option, None}
-import gleeth/rpc/methods
+import gleam/result
+import gleeth/commands/parallel_balance
 import gleeth/ethereum/formatting
 import gleeth/ethereum/types as eth_types
+import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
-import gleeth/commands/parallel_balance
 
 // Execute balance command - handles both single and multiple addresses
 pub fn execute(
-  rpc_url: String, 
-  addresses: List(eth_types.Address), 
+  rpc_url: String,
+  addresses: List(eth_types.Address),
   file: Option(String),
 ) -> Result(Nil, rpc_types.GleethError) {
   case addresses, file {

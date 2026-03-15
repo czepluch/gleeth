@@ -1,6 +1,6 @@
 import gleam/result
-import gleeth/rpc/methods
 import gleeth/ethereum/formatting
+import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 
 // Execute block number command
