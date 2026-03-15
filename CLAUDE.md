@@ -18,9 +18,9 @@ gleam format --check # Check formatting without modifying files
 
 There is no single-test runner built in. Tests are discovered by gleeunit - any public function ending in `_test` in files under `test/` is a test.
 
-## Project State Warning
+## Build Prerequisites
 
-Many source files referenced in `gleeth.gleam` imports (commands/\*, rpc/\*, ethereum/\*, crypto/\*, utils/\*) were previously deleted from disk but remain staged in git (AD status). The project will not compile until these modules are either restored or the imports are cleaned up. Only `src/gleeth/cli.gleam` and `src/gleeth/config.gleam` currently exist alongside the entrypoint.
+Requires Elixir installed (e.g. `mise install elixir`) for the `ex_keccak` and `ex_secp256k1` NIF dependencies. Run `mix local.hex --force` before first build.
 
 ## Architecture
 
@@ -44,8 +44,9 @@ All errors flow through `rpc/types.gleam`'s `GleethError` sum type with variants
 
 ### FFI
 
-- `src/gleeth_ffi.erl` - Erlang FFI for `crypto:strong_rand_bytes/1` (secure random generation)
-- JavaScript FFI was used for keccak256 (`@noble/hashes`) and secp256k1 (`@noble/secp256k1`) but the JS FFI file has been deleted
+- `src/gleeth_ffi.erl` - Erlang FFI for `crypto:strong_rand_bytes/1` (secure random) and `os:getenv/1` (env vars)
+- All keccak256 calls route through `crypto/keccak.gleam` which uses `ex_keccak` NIF
+- All secp256k1 calls route through `crypto/secp256k1.gleam` which uses `secp256k1_gleam`/`ex_secp256k1` NIF
 
 ### Key dependencies
 

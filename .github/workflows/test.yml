@@ -14,10 +14,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "27.1.2"
-          gleam-version: "1.10.0"
+          otp-version: "28"
+          gleam-version: "1.14.0"
+          elixir-version: "1.19"
           rebar3-version: "3"
-          # elixir-version: "1"
+      - run: mix local.hex --force
       - run: gleam deps download
       - run: gleam test
       - run: gleam format --check src test
