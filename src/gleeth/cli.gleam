@@ -176,11 +176,13 @@ fn split_until_flag(args: List(String)) -> #(List(String), List(String)) {
   }
 }
 
-// Get RPC URL from environment (placeholder - will be implemented with external function)
+// Get RPC URL from the GLEETH_RPC_URL environment variable
 fn get_env_rpc_url() -> Result(String, Nil) {
-  // This would need to be implemented with an external function to access env vars
-  Error(Nil)
+  get_env("GLEETH_RPC_URL")
 }
+
+@external(erlang, "gleeth_ffi", "get_env")
+fn get_env(name: String) -> Result(String, Nil)
 
 // Extract parameters and RPC arguments from argument list
 // Parameters come before --rpc-url flag
