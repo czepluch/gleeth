@@ -153,16 +153,26 @@ fn print_receipt(
   rpc_url: String,
   tx_hash: eth_types.Hash,
 ) -> Result(Nil, rpc_types.GleethError) {
-  use receipt <- result.try(methods.get_transaction_receipt(rpc_url, tx_hash))
-  io.println("")
-  io.println("Receipt:")
-  formatting.print_labeled_value("Status", case receipt.status {
-    eth_types.Success -> "Success"
-    eth_types.Failed -> "Failed"
-  })
-  formatting.print_labeled_value("Block", receipt.block_number)
-  formatting.print_labeled_value("Gas Used", receipt.gas_used)
-  Ok(Nil)
+  case methods.get_transaction_receipt(rpc_url, tx_hash) {
+    Ok(receipt) -> {
+      io.println("")
+      io.println("Receipt:")
+      formatting.print_labeled_value("Status", case receipt.status {
+        eth_types.Success -> "Success"
+        eth_types.Failed -> "Failed"
+      })
+      formatting.print_labeled_value("Block", receipt.block_number)
+      formatting.print_labeled_value("Gas Used", receipt.gas_used)
+      Ok(Nil)
+    }
+    Error(_) -> {
+      io.println("")
+      io.println(
+        "Receipt not yet available. Query with: gleeth transaction " <> tx_hash,
+      )
+      Ok(Nil)
+    }
+  }
 }
 
 fn map_tx_error(
