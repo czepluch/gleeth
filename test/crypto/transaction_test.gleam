@@ -275,6 +275,291 @@ pub fn sign_contract_call_hash_test() {
 }
 
 // =============================================================================
+// EIP-1559 transaction building
+// =============================================================================
+
+pub fn create_eip1559_transaction_test() {
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0xde0b6b3a7640000",
+      "0x5208",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      1,
+      [],
+    )
+  tx.max_fee_per_gas |> should.equal("0x4a817c800")
+  tx.max_priority_fee_per_gas |> should.equal("0x3b9aca00")
+  tx.access_list |> should.equal([])
+}
+
+pub fn reject_invalid_eip1559_chain_id_test() {
+  transaction.create_eip1559_transaction(
+    recipient,
+    "0x0",
+    "0x5208",
+    "0x4a817c800",
+    "0x3b9aca00",
+    "0x0",
+    "0x",
+    0,
+    [],
+  )
+  |> should.be_error
+}
+
+// =============================================================================
+// EIP-1559 Vector 1: Simple ETH transfer, mainnet
+// cast mktx --private-key 0xac09...ff80 --chain 1 --nonce 0
+//   --priority-gas-price 1000000000 --gas-price 20000000000
+//   --gas-limit 21000 --value 1ether <recipient>
+// =============================================================================
+
+pub fn sign_eip1559_eth_transfer_mainnet_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0xde0b6b3a7640000",
+      "0x5208",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0x02f8730180843b9aca008504a817c8008252089470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c001a00a3a2646d4ad968bb56317fdb15e17fb4d9deec0d03e8b6cb05e7125bda3006da026618ad17cc63cf1979ca75f850c536a073ec88ab1ab7c8db8b8eb129499d9ae",
+  )
+}
+
+pub fn sign_eip1559_eth_transfer_mainnet_vrs_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0xde0b6b3a7640000",
+      "0x5208",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  // v is just the recovery_id (0 or 1)
+  signed.v |> should.equal("0x1")
+}
+
+pub fn sign_eip1559_eth_transfer_mainnet_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0xde0b6b3a7640000",
+      "0x5208",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  transaction.get_eip1559_transaction_hash(signed)
+  |> should.equal(
+    "0x9bab8d3e7893fd77088c164d2834ddcb9fbfa73c93bdee90e396e3e27141f1ba",
+  )
+}
+
+// =============================================================================
+// EIP-1559 Vector 2: ETH transfer, Sepolia (chain ID 11155111), nonce 42
+// cast mktx --private-key 0xac09...ff80 --chain 11155111 --nonce 42
+//   --priority-gas-price 2000000000 --gas-price 50000000000
+//   --gas-limit 21000 --value 0.5ether <recipient>
+// =============================================================================
+
+pub fn sign_eip1559_eth_transfer_sepolia_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x6f05b59d3b20000",
+      "0x5208",
+      "0xba43b7400",
+      "0x77359400",
+      "0x2a",
+      "0x",
+      11_155_111,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0x02f87683aa36a72a8477359400850ba43b74008252089470997970c51812dc3a010c7d01b50e0d17dc79c88806f05b59d3b2000080c001a02277911a1d78c0b1e244762708aab7b8a1f9c780ce66bab4f9ef381e47fd3912a05f030193d4ee9bbbc53bd2a5721a957e8cedcbbe595fe33be512eaa5a0568c97",
+  )
+}
+
+pub fn sign_eip1559_eth_transfer_sepolia_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x6f05b59d3b20000",
+      "0x5208",
+      "0xba43b7400",
+      "0x77359400",
+      "0x2a",
+      "0x",
+      11_155_111,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  transaction.get_eip1559_transaction_hash(signed)
+  |> should.equal(
+    "0x6a691a96007b0723e8cd9bb1f12755cc4f879a74b5763a3899b3996d2ec49825",
+  )
+}
+
+// =============================================================================
+// EIP-1559 Vector 3: Contract call with calldata
+// cast mktx --private-key 0xac09...ff80 --chain 1 --nonce 1
+//   --priority-gas-price 1500000000 --gas-price 30000000000
+//   --gas-limit 100000 --value 0
+//   <recipient> "transfer(address,uint256)" 0xdead...0000 1000000000000000000
+// =============================================================================
+
+pub fn sign_eip1559_contract_call_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let calldata =
+    "0xa9059cbb000000000000000000000000dead0000000000000000000000000000000000000000000000000000000000000000000000000000000000000de0b6b3a7640000"
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x0",
+      "0x186a0",
+      "0x6fc23ac00",
+      "0x59682f00",
+      "0x1",
+      calldata,
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0x02f8b101018459682f008506fc23ac00830186a09470997970c51812dc3a010c7d01b50e0d17dc79c880b844a9059cbb000000000000000000000000dead0000000000000000000000000000000000000000000000000000000000000000000000000000000000000de0b6b3a7640000c080a004acf85f9244f1bbee4d128df342f21047f82ee421b21f8a92be8d4881114acca055519cd3891534fd64913c8d9881b88f03a9b5b4a17d4173c32e35ac8078988c",
+  )
+}
+
+pub fn sign_eip1559_contract_call_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let calldata =
+    "0xa9059cbb000000000000000000000000dead0000000000000000000000000000000000000000000000000000000000000000000000000000000000000de0b6b3a7640000"
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x0",
+      "0x186a0",
+      "0x6fc23ac00",
+      "0x59682f00",
+      "0x1",
+      calldata,
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  // v = 0 for this signature
+  signed.v |> should.equal("0x0")
+
+  transaction.get_eip1559_transaction_hash(signed)
+  |> should.equal(
+    "0x42f60f0698c66d580d3d1c3d13e24f364ba48ffb5dd53fc532554005e892337e",
+  )
+}
+
+// =============================================================================
+// EIP-1559 Vector 4: Transaction with access list
+// cast mktx --private-key 0xac09...ff80 --chain 1 --nonce 2
+//   --priority-gas-price 1000000000 --gas-price 20000000000
+//   --gas-limit 50000 --value 0
+//   --access-list '[{"address":"<recipient>","storageKeys":["0x0...01"]}]'
+//   <recipient>
+// =============================================================================
+
+pub fn sign_eip1559_with_access_list_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x0",
+      "0xc350",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x2",
+      "0x",
+      1,
+      [
+        transaction.AccessListEntry(
+          address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          storage_keys: [
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+          ],
+        ),
+      ],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0x02f8a40102843b9aca008504a817c80082c3509470997970c51812dc3a010c7d01b50e0d17dc79c88080f838f79470997970c51812dc3a010c7d01b50e0d17dc79c8e1a0000000000000000000000000000000000000000000000000000000000000000180a083311d92388bb8bbe54d47b4ce1bb646836d59ae263bbb0bbac68a0db95db3a1a058af19624b22330ec6da7d516691d42388ac3ec7c0b57e151ff761ac1ab04ad5",
+  )
+}
+
+pub fn sign_eip1559_with_access_list_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x0",
+      "0xc350",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x2",
+      "0x",
+      1,
+      [
+        transaction.AccessListEntry(
+          address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          storage_keys: [
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+          ],
+        ),
+      ],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  transaction.get_eip1559_transaction_hash(signed)
+  |> should.equal(
+    "0xf34037a1d45d4dfab8bd0f31f8957fc6a97b1a7d9f7250460dcee97a92f33800",
+  )
+}
+
+// =============================================================================
 // Anvil integration: sign and broadcast a transaction
 // Skips gracefully if anvil is not running on localhost:8545
 // Start anvil with: anvil

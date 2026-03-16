@@ -71,6 +71,25 @@ pub type AccessListEntry {
   AccessListEntry(address: String, storage_keys: List(String))
 }
 
+/// Represents a signed EIP-1559 (Type 2) transaction
+pub type SignedEip1559Transaction {
+  SignedEip1559Transaction(
+    to: String,
+    value: String,
+    gas_limit: String,
+    max_fee_per_gas: String,
+    max_priority_fee_per_gas: String,
+    nonce: String,
+    data: String,
+    chain_id: Int,
+    access_list: List(AccessListEntry),
+    v: String,
+    r: String,
+    s: String,
+    raw_transaction: String,
+  )
+}
+
 /// Transaction type enumeration
 pub type TransactionType {
   Legacy
@@ -168,6 +187,40 @@ pub fn create_contract_call(
   )
 }
 
+/// Create and validate an EIP-1559 (Type 2) transaction
+pub fn create_eip1559_transaction(
+  to: String,
+  value: String,
+  gas_limit: String,
+  max_fee_per_gas: String,
+  max_priority_fee_per_gas: String,
+  nonce: String,
+  data: String,
+  chain_id: Int,
+  access_list: List(AccessListEntry),
+) -> Result(Eip1559Transaction, TransactionError) {
+  use _ <- result.try(validate_address(to))
+  use _ <- result.try(validate_hex_amount(value))
+  use _ <- result.try(validate_hex_amount(gas_limit))
+  use _ <- result.try(validate_hex_amount(max_fee_per_gas))
+  use _ <- result.try(validate_hex_amount(max_priority_fee_per_gas))
+  use _ <- result.try(validate_hex_amount(nonce))
+  use _ <- result.try(validate_hex_data(data))
+  use _ <- result.try(validate_chain_id(chain_id))
+
+  Ok(Eip1559Transaction(
+    to: normalize_address(to),
+    value: normalize_hex(value),
+    gas_limit: normalize_hex(gas_limit),
+    max_fee_per_gas: normalize_hex(max_fee_per_gas),
+    max_priority_fee_per_gas: normalize_hex(max_priority_fee_per_gas),
+    nonce: normalize_hex(nonce),
+    data: normalize_hex_data(data),
+    chain_id: chain_id,
+    access_list: access_list,
+  ))
+}
+
 // =============================================================================
 // Transaction Signing
 // =============================================================================
@@ -206,6 +259,49 @@ pub fn sign_transaction(
     nonce: transaction.nonce,
     data: transaction.data,
     chain_id: transaction.chain_id,
+    v: v_hex,
+    r: r_hex,
+    s: s_hex,
+    raw_transaction: raw_tx,
+  ))
+}
+
+/// Sign an EIP-1559 (Type 2) transaction with a wallet.
+/// Produces a type-prefixed RLP-encoded raw transaction: 0x02 || RLP([...]).
+pub fn sign_eip1559_transaction(
+  transaction: Eip1559Transaction,
+  wallet: wallet.Wallet,
+) -> Result(SignedEip1559Transaction, TransactionError) {
+  let signing_hash = create_eip1559_signing_hash(transaction)
+
+  use signature <- result.try(
+    wallet.sign_hash(wallet, signing_hash)
+    |> result.map_error(fn(err) {
+      SigningFailed(
+        "Failed to sign transaction: " <> wallet.error_to_string(err),
+      )
+    }),
+  )
+
+  // EIP-1559: v is just the recovery_id (0 or 1)
+  let v = signature.recovery_id
+  let v_hex = "0x" <> string.lowercase(int.to_base16(v))
+  let r_hex = hex.encode(signature.r)
+  let s_hex = hex.encode(signature.s)
+
+  let raw_tx =
+    create_eip1559_raw_transaction(transaction, v, signature.r, signature.s)
+
+  Ok(SignedEip1559Transaction(
+    to: transaction.to,
+    value: transaction.value,
+    gas_limit: transaction.gas_limit,
+    max_fee_per_gas: transaction.max_fee_per_gas,
+    max_priority_fee_per_gas: transaction.max_priority_fee_per_gas,
+    nonce: transaction.nonce,
+    data: transaction.data,
+    chain_id: transaction.chain_id,
+    access_list: transaction.access_list,
     v: v_hex,
     r: r_hex,
     s: s_hex,
@@ -254,6 +350,60 @@ fn create_raw_transaction(
       rlp.RlpBytes(strip_leading_zeros(s)),
     ])
   hex.encode(rlp.encode(items))
+}
+
+/// EIP-1559 signing hash: keccak256(0x02 || RLP([chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList]))
+fn create_eip1559_signing_hash(transaction: Eip1559Transaction) -> BitArray {
+  let items =
+    rlp.RlpList([
+      rlp.encode_int(transaction.chain_id),
+      rlp.encode_hex_field(transaction.nonce),
+      rlp.encode_hex_field(transaction.max_priority_fee_per_gas),
+      rlp.encode_hex_field(transaction.max_fee_per_gas),
+      rlp.encode_hex_field(transaction.gas_limit),
+      encode_raw_hex(transaction.to),
+      rlp.encode_hex_field(transaction.value),
+      encode_raw_hex(transaction.data),
+      encode_access_list(transaction.access_list),
+    ])
+  let payload = rlp.encode(items)
+  keccak.keccak256_binary(<<0x02, payload:bits>>)
+}
+
+/// RLP-encode the signed EIP-1559 transaction: 0x02 || RLP([chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList, v, r, s])
+fn create_eip1559_raw_transaction(
+  transaction: Eip1559Transaction,
+  v: Int,
+  r: BitArray,
+  s: BitArray,
+) -> String {
+  let items =
+    rlp.RlpList([
+      rlp.encode_int(transaction.chain_id),
+      rlp.encode_hex_field(transaction.nonce),
+      rlp.encode_hex_field(transaction.max_priority_fee_per_gas),
+      rlp.encode_hex_field(transaction.max_fee_per_gas),
+      rlp.encode_hex_field(transaction.gas_limit),
+      encode_raw_hex(transaction.to),
+      rlp.encode_hex_field(transaction.value),
+      encode_raw_hex(transaction.data),
+      encode_access_list(transaction.access_list),
+      rlp.encode_int(v),
+      rlp.RlpBytes(strip_leading_zeros(r)),
+      rlp.RlpBytes(strip_leading_zeros(s)),
+    ])
+  let payload = rlp.encode(items)
+  hex.encode(<<0x02, payload:bits>>)
+}
+
+/// Encode an access list as an RLP list of [address, [storageKeys]] entries
+fn encode_access_list(entries: List(AccessListEntry)) -> rlp.RlpItem {
+  rlp.RlpList(list.map(entries, encode_access_list_entry))
+}
+
+fn encode_access_list_entry(entry: AccessListEntry) -> rlp.RlpItem {
+  let storage_keys = list.map(entry.storage_keys, encode_raw_hex)
+  rlp.RlpList([encode_raw_hex(entry.address), rlp.RlpList(storage_keys)])
 }
 
 /// Encode a hex string as raw bytes without stripping leading zeros.
@@ -426,12 +576,66 @@ pub fn signed_transaction_to_string(tx: SignedTransaction) -> String {
   <> "}"
 }
 
-/// Get transaction hash from signed transaction
+/// Get transaction hash from a signed legacy transaction
 pub fn get_transaction_hash(tx: SignedTransaction) -> String {
-  case hex.decode(tx.raw_transaction) {
+  hash_raw_transaction(tx.raw_transaction)
+}
+
+/// Get transaction hash from a signed EIP-1559 transaction
+pub fn get_eip1559_transaction_hash(tx: SignedEip1559Transaction) -> String {
+  hash_raw_transaction(tx.raw_transaction)
+}
+
+/// Hash a raw transaction hex string to get its transaction hash
+pub fn hash_raw_transaction(raw_transaction: String) -> String {
+  case hex.decode(raw_transaction) {
     Ok(raw_bytes) -> hex.encode(keccak.keccak256_binary(raw_bytes))
     Error(_) -> ""
   }
+}
+
+/// Convert signed EIP-1559 transaction to string for display
+pub fn signed_eip1559_transaction_to_string(
+  tx: SignedEip1559Transaction,
+) -> String {
+  "SignedEip1559Transaction {\n"
+  <> "  to: "
+  <> tx.to
+  <> "\n"
+  <> "  value: "
+  <> tx.value
+  <> "\n"
+  <> "  gas_limit: "
+  <> tx.gas_limit
+  <> "\n"
+  <> "  max_fee_per_gas: "
+  <> tx.max_fee_per_gas
+  <> "\n"
+  <> "  max_priority_fee_per_gas: "
+  <> tx.max_priority_fee_per_gas
+  <> "\n"
+  <> "  nonce: "
+  <> tx.nonce
+  <> "\n"
+  <> "  data: "
+  <> tx.data
+  <> "\n"
+  <> "  chain_id: "
+  <> int.to_string(tx.chain_id)
+  <> "\n"
+  <> "  v: "
+  <> tx.v
+  <> "\n"
+  <> "  r: "
+  <> tx.r
+  <> "\n"
+  <> "  s: "
+  <> tx.s
+  <> "\n"
+  <> "  raw: "
+  <> tx.raw_transaction
+  <> "\n"
+  <> "}"
 }
 
 /// Convert TransactionError to string
