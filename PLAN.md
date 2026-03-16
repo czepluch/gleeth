@@ -11,17 +11,18 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - Crypto: keccak256 (via ex_keccak NIF), secp256k1 signing/verification/recovery (via ex_secp256k1 NIF)
 - Wallet: creation from private key, random generation, message signing, signature recovery
 - RLP encoding/decoding per Ethereum Yellow Paper spec (`encoding/rlp.gleam`)
-- Legacy (Type 0) transaction signing with proper EIP-155 replay protection
+- Legacy (Type 0) and EIP-1559 (Type 2) transaction signing
+- Transaction broadcasting via `eth_sendRawTransaction`
+- Fee estimation: `eth_gasPrice`, `eth_maxPriorityFeePerGas`, `eth_feeHistory`
+- Nonce queries via `eth_getTransactionCount`
 - Proper JSON decoding with gleam_json decoders (replaced manual string parsing)
 - Concurrent balance checking with BEAM process batching
 - GLEETH_RPC_URL environment variable support
-- 150 tests, zero warnings (including Foundry-verified transaction signing vectors)
+- 170 tests, zero warnings (including Foundry-verified signing vectors and anvil integration)
 
 ### What doesn't work
 
-- EIP-1559 (Type 2) transaction signing - types defined, no encoding/signing logic
 - ABI only handles uint256, address, bool, bytes32
-- No transaction broadcasting (no eth_sendRawTransaction RPC method)
 - CI workflow fails (outdated Gleam version, missing Elixir)
 
 ## Phase 1: Foundation fixes
@@ -54,36 +55,31 @@ RLP encoder/decoder implemented in `encoding/rlp.gleam` with 47 tests covering t
 - Verified byte-identical to Foundry `cast mktx --legacy` across mainnet, Sepolia, and anvil
 - Verified end-to-end: signed tx accepted and mined by anvil
 
-### 3.2 EIP-1559 (Type 2) transaction signing
+### 3.2 EIP-1559 (Type 2) transaction signing - DONE
 
-EIP-1559 is the default transaction type since the London hard fork (August 2021). Almost all mainnet transactions use it. Key differences from legacy:
-
-- Envelope format: type byte prefix `0x02` before the RLP payload
-- Two gas fields: `maxPriorityFeePerGas` (tip) and `maxFeePerGas` (total cap) replace single `gasPrice`
-- Simpler v value: just the raw recovery_id (0 or 1), no chain ID encoding
-- Access lists: optional `List(#(address, List(storage_key)))` for gas discounts
-
-Implementation:
-- Signing payload: `keccak256(0x02 || RLP([chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList]))`
-- Signed form: `0x02 || RLP([chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList, v, r, s])`
-- Add `sign_eip1559_transaction` to `crypto/transaction.gleam`
-- Reuse existing `Eip1559Transaction` and `AccessListEntry` types
-- Tests with Foundry-generated vectors (`cast mktx` without `--legacy`)
+- Envelope format: `0x02 || RLP([chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList, v, r, s])`
+- v = raw recovery_id (0 or 1), no chain ID encoding
+- Access list support: `List(#(address, List(storage_key)))`
+- Verified byte-identical to Foundry `cast mktx` across 4 vectors including access lists
 
 EIP-2930 (Type 1, access list only) is rarely used standalone and can be deferred.
 
-### 3.3 Add broadcasting support
+### 3.3 Broadcasting support - DONE
 
-- Add `eth_sendRawTransaction` to `rpc/methods.gleam`
-- Add `eth_getTransactionCount` for nonce queries
-- Add `eth_gasPrice` and `eth_feeHistory` for fee estimation
-- Add `eth_getTransactionReceipt` polling for confirmation
+- `eth_sendRawTransaction` - broadcast signed transactions
+- `eth_getTransactionCount` - nonce queries (defaults to "pending" block)
+- `eth_gasPrice` - legacy gas price estimation
+- `eth_maxPriorityFeePerGas` - EIP-1559 priority fee suggestion
+- `eth_feeHistory` - historical fee data with percentile rewards
+- `eth_getTransactionReceipt` was already implemented (used for receipt polling)
 
-### 3.4 Tests - DONE (for legacy and EIP-1559)
+### 3.4 Tests - DONE
 
 - 14 legacy transaction signing tests including 3 Foundry-verified vectors
 - 12 EIP-1559 transaction signing tests including 4 Foundry-verified vectors (with access list coverage)
-- Anvil integration test (sends signed tx, verifies acceptance)
+- 7 RPC decoder tests for broadcasting/fee methods
+- 3 anvil integration tests: legacy broadcast, EIP-1559 broadcast, fee history query
+- All integration tests query nonce + fees from anvil, sign, broadcast, and verify receipt
 
 Future: expand signing test coverage significantly - more edge cases (zero-value fields, max-size calldata, multiple access list entries, unusual chain IDs, contract creation with empty `to`), fuzz testing with random transaction parameters verified against Foundry, and cross-client verification (e.g. comparing against ethers.js or web3.py output). Low priority but valuable for long-term confidence.
 
@@ -125,7 +121,17 @@ Future: expand signing test coverage significantly - more edge cases (zero-value
 - WebSocket provider for subscriptions (eth_subscribe)
 - Event streaming for new blocks, pending transactions, logs
 
-## Phase 6: Advanced features (future)
+## Phase 6: Architecture decisions
+
+### 6.1 Library vs CLI split
+
+Gleeth should be a library for Gleam projects to interact with Ethereum. The CLI currently lives in the same package (`src/gleeth.gleam` + `src/gleeth/commands/`). This needs a decision:
+
+- **Option A: Split into two packages** - `gleeth` (library only) and `gleeth_cli` (depends on gleeth). Cleaner separation, library consumers don't pull in CLI dependencies. Standard approach in the Gleam/Rust ecosystem.
+- **Option B: Keep as one package** - simpler to maintain, fewer repos. The CLI entrypoint is just one file and the commands are thin wrappers around library functions.
+- **Current status**: the CLI is useful for manual testing and verification (e.g. `gleeth send` against anvil). No need to split immediately, but should decide before publishing to Hex.
+
+## Phase 7: Advanced features (future)
 
 - ENS name resolution
 - EIP-55 checksummed addresses

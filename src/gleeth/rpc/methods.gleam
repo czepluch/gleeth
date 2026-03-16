@@ -92,6 +92,94 @@ pub fn get_storage_at(
   response_utils.make_string_request(rpc_url, rpc_types.EthGetStorageAt, params)
 }
 
+// Get the chain ID of the connected network.
+pub fn get_chain_id(rpc_url: String) -> Result(String, rpc_types.GleethError) {
+  response_utils.make_string_request(rpc_url, rpc_types.EthChainId, [])
+}
+
+// ---------------------------------------------------------------------------
+// Transaction broadcasting
+// ---------------------------------------------------------------------------
+
+// Broadcast a signed raw transaction to the network.
+// raw_tx should be the hex-encoded signed transaction (e.g. "0x02f873...").
+// Returns the transaction hash on success.
+pub fn send_raw_transaction(
+  rpc_url: String,
+  raw_tx: String,
+) -> Result(eth_types.Hash, rpc_types.GleethError) {
+  let params = [json.string(raw_tx)]
+  response_utils.make_string_request(
+    rpc_url,
+    rpc_types.EthSendRawTransaction,
+    params,
+  )
+}
+
+// Get the transaction count (nonce) for an address.
+// The block parameter defaults to "pending" to get the next usable nonce.
+pub fn get_transaction_count(
+  rpc_url: String,
+  address: eth_types.Address,
+  block: String,
+) -> Result(String, rpc_types.GleethError) {
+  let block_param = case block {
+    "" -> "pending"
+    _ -> block
+  }
+  let params = [json.string(address), json.string(block_param)]
+  response_utils.make_string_request(
+    rpc_url,
+    rpc_types.EthGetTransactionCount,
+    params,
+  )
+}
+
+// Get the current gas price in wei (for legacy transactions).
+pub fn get_gas_price(
+  rpc_url: String,
+) -> Result(eth_types.Wei, rpc_types.GleethError) {
+  response_utils.make_string_request(rpc_url, rpc_types.EthGasPrice, [])
+}
+
+// Get the current max priority fee per gas suggestion (for EIP-1559 transactions).
+pub fn get_max_priority_fee(
+  rpc_url: String,
+) -> Result(eth_types.Wei, rpc_types.GleethError) {
+  response_utils.make_string_request(
+    rpc_url,
+    rpc_types.EthMaxPriorityFeePerGas,
+    [],
+  )
+}
+
+// Get fee history for recent blocks.
+// block_count: number of blocks to return (as decimal integer)
+// newest_block: highest block ("latest", "pending", or hex block number)
+// reward_percentiles: percentiles of effective priority fees to return (e.g. [25.0, 50.0, 75.0])
+pub fn get_fee_history(
+  rpc_url: String,
+  block_count: Int,
+  newest_block: String,
+  reward_percentiles: List(Float),
+) -> Result(eth_types.FeeHistory, rpc_types.GleethError) {
+  let newest = case newest_block {
+    "" -> "latest"
+    _ -> newest_block
+  }
+  let params = [
+    json.int(block_count),
+    json.string(newest),
+    json.array(reward_percentiles, json.float),
+  ]
+  response_utils.make_decoded_request(
+    rpc_url,
+    rpc_types.EthFeeHistory,
+    params,
+    fee_history_decoder(),
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Complex RPC methods (return structured data)
 // ---------------------------------------------------------------------------
@@ -289,6 +377,26 @@ fn log_decoder() -> decode.Decoder(eth_types.Log) {
     block_hash: block_hash,
     log_index: log_index,
     removed: removed,
+  ))
+}
+
+fn fee_history_decoder() -> decode.Decoder(eth_types.FeeHistory) {
+  use oldest_block <- decode.field("oldestBlock", decode.string)
+  use base_fee_per_gas <- decode.field(
+    "baseFeePerGas",
+    decode.list(decode.string),
+  )
+  use gas_used_ratio <- decode.field("gasUsedRatio", decode.list(decode.float))
+  use reward <- decode.optional_field(
+    "reward",
+    [],
+    decode.list(decode.list(decode.string)),
+  )
+  decode.success(eth_types.FeeHistory(
+    oldest_block: oldest_block,
+    base_fee_per_gas: base_fee_per_gas,
+    gas_used_ratio: gas_used_ratio,
+    reward: reward,
   ))
 }
 

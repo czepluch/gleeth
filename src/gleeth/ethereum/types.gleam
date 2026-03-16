@@ -171,3 +171,17 @@ pub type Transaction {
 pub type Balance {
   Balance(address: Address, value: Wei)
 }
+
+// Fee history for EIP-1559 gas estimation
+pub type FeeHistory {
+  FeeHistory(
+    oldest_block: BlockNumber,
+    // Oldest block in the returned range
+    base_fee_per_gas: List(String),
+    // Base fee per gas for each block (N+1 entries: includes next block)
+    gas_used_ratio: List(Float),
+    // Gas used ratio for each block (0.0 to 1.0)
+    reward: List(List(String)),
+    // Priority fee percentiles for each block (if requested)
+  )
+}

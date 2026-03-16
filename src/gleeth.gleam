@@ -6,6 +6,7 @@ import gleeth/commands/call
 import gleeth/commands/code
 import gleeth/commands/estimate_gas
 import gleeth/commands/get_logs
+import gleeth/commands/send
 import gleeth/commands/storage_at
 import gleeth/commands/transaction
 import gleeth/commands/wallet
@@ -66,6 +67,11 @@ fn execute_command(command: cli.Command, rpc_url: String) -> Nil {
       storage_at.execute(rpc_url, address, slot, block)
     cli.GetLogs(from_block, to_block, address, topics) ->
       get_logs.execute(rpc_url, from_block, to_block, address, topics)
+    cli.Send(to, value, private_key, gas_limit, data, legacy) ->
+      send.execute(
+        rpc_url,
+        send.SendArgs(to, value, private_key, gas_limit, data, legacy),
+      )
     cli.Wallet(_) -> {
       // This case should not occur due to earlier handling
       formatting.print_error("Wallet command should be handled separately")

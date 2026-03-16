@@ -260,6 +260,86 @@ pub fn decode_empty_logs_list_test() {
 }
 
 // ---------------------------------------------------------------------------
+// Transaction broadcasting / fee estimation decoding
+// ---------------------------------------------------------------------------
+
+pub fn decode_send_raw_transaction_response_test() {
+  let body =
+    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x9bab8d3e7893fd77088c164d2834ddcb9fbfa73c93bdee90e396e3e27141f1ba\"}"
+  let result = response_utils.decode_rpc_response(body, decode.string)
+  should.equal(
+    result,
+    Ok("0x9bab8d3e7893fd77088c164d2834ddcb9fbfa73c93bdee90e396e3e27141f1ba"),
+  )
+}
+
+pub fn decode_send_raw_transaction_nonce_error_test() {
+  let body =
+    "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32000,\"message\":\"nonce too low\"}}"
+  let result = response_utils.decode_rpc_response(body, decode.string)
+  case result {
+    Error(rpc_types.RpcError(msg)) ->
+      should.be_true(msg == "RPC Error: nonce too low")
+    _ -> should.fail()
+  }
+}
+
+pub fn decode_transaction_count_response_test() {
+  let body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x2a\"}"
+  let result = response_utils.decode_rpc_response(body, decode.string)
+  should.equal(result, Ok("0x2a"))
+}
+
+pub fn decode_gas_price_response_test() {
+  let body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x3b9aca00\"}"
+  let result = response_utils.decode_rpc_response(body, decode.string)
+  should.equal(result, Ok("0x3b9aca00"))
+}
+
+pub fn decode_max_priority_fee_response_test() {
+  let body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x59682f00\"}"
+  let result = response_utils.decode_rpc_response(body, decode.string)
+  should.equal(result, Ok("0x59682f00"))
+}
+
+pub fn decode_fee_history_response_test() {
+  let body =
+    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"oldestBlock\":\"0x1234\",\"baseFeePerGas\":[\"0x3b9aca00\",\"0x3b9aca01\",\"0x3b9aca02\"],\"gasUsedRatio\":[0.5,0.7],\"reward\":[[\"0x59682f00\",\"0x77359400\"],[\"0x3b9aca00\",\"0x59682f00\"]]}}"
+  let result =
+    response_utils.decode_rpc_response(body, fee_history_decoder_for_test())
+  case result {
+    Ok(fh) -> {
+      should.equal(fh.oldest_block, "0x1234")
+      should.equal(fh.base_fee_per_gas, [
+        "0x3b9aca00",
+        "0x3b9aca01",
+        "0x3b9aca02",
+      ])
+      should.equal(fh.gas_used_ratio, [0.5, 0.7])
+      should.equal(fh.reward, [
+        ["0x59682f00", "0x77359400"],
+        ["0x3b9aca00", "0x59682f00"],
+      ])
+    }
+    Error(_) -> should.fail()
+  }
+}
+
+pub fn decode_fee_history_no_reward_test() {
+  let body =
+    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"oldestBlock\":\"0x100\",\"baseFeePerGas\":[\"0x1\",\"0x2\"],\"gasUsedRatio\":[0.3]}}"
+  let result =
+    response_utils.decode_rpc_response(body, fee_history_decoder_for_test())
+  case result {
+    Ok(fh) -> {
+      should.equal(fh.oldest_block, "0x100")
+      should.equal(fh.reward, [])
+    }
+    Error(_) -> should.fail()
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Decoders duplicated from methods.gleam for testing
 // (methods.gleam keeps them private; these mirror the same structure)
 // ---------------------------------------------------------------------------
@@ -325,6 +405,26 @@ fn transaction_decoder_for_test() -> decode.Decoder(eth_types.Transaction) {
     v: v,
     r: r,
     s: s,
+  ))
+}
+
+fn fee_history_decoder_for_test() -> decode.Decoder(eth_types.FeeHistory) {
+  use oldest_block <- decode.field("oldestBlock", decode.string)
+  use base_fee_per_gas <- decode.field(
+    "baseFeePerGas",
+    decode.list(decode.string),
+  )
+  use gas_used_ratio <- decode.field("gasUsedRatio", decode.list(decode.float))
+  use reward <- decode.optional_field(
+    "reward",
+    [],
+    decode.list(decode.list(decode.string)),
+  )
+  decode.success(eth_types.FeeHistory(
+    oldest_block: oldest_block,
+    base_fee_per_gas: base_fee_per_gas,
+    gas_used_ratio: gas_used_ratio,
+    reward: reward,
   ))
 }
 

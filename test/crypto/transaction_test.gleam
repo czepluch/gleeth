@@ -1,8 +1,8 @@
-import gleam/json
 import gleam/string
 import gleeth/crypto/transaction
 import gleeth/crypto/wallet
 import gleeth/rpc/client
+import gleeth/rpc/methods
 import gleeunit/should
 
 // Anvil default account 0
@@ -560,41 +560,122 @@ pub fn sign_eip1559_with_access_list_hash_test() {
 }
 
 // =============================================================================
-// Anvil integration: sign and broadcast a transaction
+// Anvil integration tests
 // Skips gracefully if anvil is not running on localhost:8545
 // Start anvil with: anvil
 // =============================================================================
 
-pub fn anvil_accept_signed_transaction_test() {
-  case client.make_request("http://localhost:8545", "eth_chainId", []) {
-    Ok(_) -> {
+const anvil_url = "http://localhost:8545"
+
+const anvil_chain_id = 31_337
+
+fn anvil_available() -> Bool {
+  case client.make_request(anvil_url, "eth_chainId", []) {
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
+pub fn anvil_legacy_broadcast_test() {
+  case anvil_available() {
+    False -> Nil
+    True -> {
       let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+
+      // Query nonce from anvil
+      let assert Ok(nonce) =
+        methods.get_transaction_count(anvil_url, test_address, "pending")
+
+      // Query gas price from anvil
+      let assert Ok(gas_price) = methods.get_gas_price(anvil_url)
+
+      // Build, sign, broadcast
       let assert Ok(tx) =
         transaction.create_legacy_transaction(
           recipient,
           "0xde0b6b3a7640000",
           "0x5208",
-          "0x3b9aca00",
-          "0x0",
+          gas_price,
+          nonce,
           "0x",
-          31_337,
+          anvil_chain_id,
         )
       let assert Ok(signed) = transaction.sign_transaction(tx, w)
 
-      // Broadcast the signed transaction
-      let assert Ok(response_body) =
-        client.make_request("http://localhost:8545", "eth_sendRawTransaction", [
-          json.string(signed.raw_transaction),
-        ])
+      let assert Ok(tx_hash) =
+        methods.send_raw_transaction(anvil_url, signed.raw_transaction)
 
-      // Anvil should return the transaction hash, not an error
+      // The returned hash should match what we compute locally
       let expected_hash = transaction.get_transaction_hash(signed)
-      string.contains(response_body, expected_hash)
-      |> should.be_true
+      tx_hash |> should.equal(expected_hash)
+
+      // Poll for receipt
+      let assert Ok(receipt) =
+        methods.get_transaction_receipt(anvil_url, tx_hash)
+      receipt.transaction_hash
+      |> string.lowercase
+      |> should.equal(string.lowercase(tx_hash))
     }
-    Error(_) -> {
-      // Anvil not running - skip gracefully
-      Nil
+  }
+}
+
+pub fn anvil_eip1559_broadcast_test() {
+  case anvil_available() {
+    False -> Nil
+    True -> {
+      let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+
+      // Query nonce
+      let assert Ok(nonce) =
+        methods.get_transaction_count(anvil_url, test_address, "pending")
+
+      // Query fee parameters
+      let assert Ok(gas_price) = methods.get_gas_price(anvil_url)
+      let assert Ok(priority_fee) = methods.get_max_priority_fee(anvil_url)
+
+      // Build EIP-1559 transaction
+      let assert Ok(tx) =
+        transaction.create_eip1559_transaction(
+          recipient,
+          "0xde0b6b3a7640000",
+          "0x5208",
+          gas_price,
+          priority_fee,
+          nonce,
+          "0x",
+          anvil_chain_id,
+          [],
+        )
+      let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+      // Broadcast
+      let assert Ok(tx_hash) =
+        methods.send_raw_transaction(anvil_url, signed.raw_transaction)
+
+      let expected_hash = transaction.get_eip1559_transaction_hash(signed)
+      tx_hash |> should.equal(expected_hash)
+
+      // Poll for receipt and verify success
+      let assert Ok(receipt) =
+        methods.get_transaction_receipt(anvil_url, tx_hash)
+      receipt.transaction_hash
+      |> string.lowercase
+      |> should.equal(string.lowercase(tx_hash))
+    }
+  }
+}
+
+pub fn anvil_fee_history_test() {
+  case anvil_available() {
+    False -> Nil
+    True -> {
+      let assert Ok(fh) =
+        methods.get_fee_history(anvil_url, 4, "latest", [25.0, 75.0])
+
+      // Should return fee data for the requested blocks
+      // oldest_block should be a hex string
+      string.starts_with(fh.oldest_block, "0x")
+      |> should.be_true
     }
   }
 }

@@ -36,6 +36,12 @@ pub type EthMethod {
   EthGetStorageAt
   EthGetLogs
   EthGetBlockByNumber
+  EthChainId
+  EthSendRawTransaction
+  EthGetTransactionCount
+  EthGasPrice
+  EthMaxPriorityFeePerGas
+  EthFeeHistory
 }
 
 // Convert method to string
@@ -51,6 +57,12 @@ pub fn method_to_string(method: EthMethod) -> String {
     EthGetStorageAt -> "eth_getStorageAt"
     EthGetLogs -> "eth_getLogs"
     EthGetBlockByNumber -> "eth_getBlockByNumber"
+    EthChainId -> "eth_chainId"
+    EthSendRawTransaction -> "eth_sendRawTransaction"
+    EthGetTransactionCount -> "eth_getTransactionCount"
+    EthGasPrice -> "eth_gasPrice"
+    EthMaxPriorityFeePerGas -> "eth_maxPriorityFeePerGas"
+    EthFeeHistory -> "eth_feeHistory"
   }
 }
 

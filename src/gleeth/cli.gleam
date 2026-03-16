@@ -22,6 +22,14 @@ pub type Command {
     address: String,
     topics: List(String),
   )
+  Send(
+    to: String,
+    value: String,
+    private_key: String,
+    gas_limit: String,
+    data: String,
+    legacy: Bool,
+  )
   Wallet(wallet_args: List(String))
   Help
 }
@@ -90,6 +98,14 @@ pub fn parse_args(args: List(String)) -> Result(Args, rpc_types.GleethError) {
       )
       use rpc_url <- result.try(extract_rpc_url(remaining))
       Ok(Args(GetLogs(from_block, to_block, address, topics), rpc_url))
+    }
+
+    ["send", ..rest] -> {
+      use #(to, value, private_key, gas_limit, data, legacy, remaining) <- result.try(
+        parse_send_args(rest),
+      )
+      use rpc_url <- result.try(extract_rpc_url(remaining))
+      Ok(Args(Send(to, value, private_key, gas_limit, data, legacy), rpc_url))
     }
 
     ["wallet", ..wallet_args] -> {
@@ -389,6 +405,112 @@ fn parse_get_logs_args_helper(
   }
 }
 
+// Parse send command arguments
+fn parse_send_args(
+  args: List(String),
+) -> Result(
+  #(String, String, String, String, String, Bool, List(String)),
+  rpc_types.GleethError,
+) {
+  parse_send_args_helper(args, "", "", "", "", "0x", False, [])
+}
+
+fn parse_send_args_helper(
+  args: List(String),
+  to: String,
+  value: String,
+  private_key: String,
+  gas_limit: String,
+  data: String,
+  legacy: Bool,
+  remaining: List(String),
+) -> Result(
+  #(String, String, String, String, String, Bool, List(String)),
+  rpc_types.GleethError,
+) {
+  case args {
+    [] -> {
+      case to == "" || private_key == "" {
+        True ->
+          Error(rpc_types.ConfigError(
+            "send requires --to and --private-key flags",
+          ))
+        False ->
+          Ok(#(to, value, private_key, gas_limit, data, legacy, remaining))
+      }
+    }
+    ["--to", addr, ..rest] -> {
+      use validated_addr <- result.try(validation.validate_address(addr))
+      parse_send_args_helper(
+        rest,
+        validated_addr,
+        value,
+        private_key,
+        gas_limit,
+        data,
+        legacy,
+        remaining,
+      )
+    }
+    ["--value", val, ..rest] ->
+      parse_send_args_helper(
+        rest,
+        to,
+        val,
+        private_key,
+        gas_limit,
+        data,
+        legacy,
+        remaining,
+      )
+    ["--private-key", key, ..rest] ->
+      parse_send_args_helper(
+        rest,
+        to,
+        value,
+        key,
+        gas_limit,
+        data,
+        legacy,
+        remaining,
+      )
+    ["--gas-limit", gl, ..rest] ->
+      parse_send_args_helper(
+        rest,
+        to,
+        value,
+        private_key,
+        gl,
+        data,
+        legacy,
+        remaining,
+      )
+    ["--data", d, ..rest] ->
+      parse_send_args_helper(
+        rest,
+        to,
+        value,
+        private_key,
+        gas_limit,
+        d,
+        legacy,
+        remaining,
+      )
+    ["--legacy", ..rest] ->
+      parse_send_args_helper(
+        rest,
+        to,
+        value,
+        private_key,
+        gas_limit,
+        data,
+        True,
+        remaining,
+      )
+    _ -> Ok(#(to, value, private_key, gas_limit, data, legacy, args))
+  }
+}
+
 // Display help message
 pub fn show_help() -> Nil {
   io.println("gleeth - Ethereum blockchain query tool")
@@ -416,6 +538,9 @@ pub fn show_help() -> Nil {
     "  storage-at --address <addr> --slot <slot> [OPTIONS]  Get storage value at slot",
   )
   io.println("  get-logs [OPTIONS]              Get event logs with filtering")
+  io.println(
+    "  send [OPTIONS]                  Sign and broadcast a transaction",
+  )
   io.println("  help                           Show this help message")
   io.println("")
   io.println("OPTIONS:")
@@ -471,6 +596,9 @@ pub fn show_help() -> Nil {
     "  gleeth call 0xA0b86a33E6Fb7e4f67c5776f8fcB44F56c71d8b8 balanceOf address:0x742d... --rpc-url https://eth.llamarpc.com",
   )
   io.println(
+    "  gleeth send --to 0x7099... --value 0xde0b6b3a7640000 --private-key 0xac09... --rpc-url http://localhost:8545",
+  )
+  io.println(
     "  gleeth estimate-gas --from 0x742d... --to 0x7a25... --value 0x1000... --rpc-url https://eth.llamarpc.com",
   )
   io.println(
@@ -478,6 +606,20 @@ pub fn show_help() -> Nil {
   )
   io.println(
     "  gleeth get-logs --address 0xA0b86a... --from-block 0x1000000 --rpc-url https://eth.llamarpc.com",
+  )
+  io.println("")
+  io.println("SEND OPTIONS:")
+  io.println("  --to <address>                 Recipient address (required)")
+  io.println(
+    "  --value <hex>                  Wei amount to send (hex, e.g. 0xde0b6b3a7640000 for 1 ETH)",
+  )
+  io.println("  --private-key <hex>            Sender's private key (required)")
+  io.println(
+    "  --gas-limit <hex>              Gas limit (optional, defaults to 21000)",
+  )
+  io.println("  --data <hex>                   Transaction data (optional)")
+  io.println(
+    "  --legacy                       Use legacy (Type 0) instead of EIP-1559",
   )
   io.println("")
   io.println("WALLET COMMANDS:")
