@@ -1,13 +1,14 @@
+import gleam/bit_array
 import gleam/int
 import gleam/list
 import gleam/result
 import gleam/string
-import gleeth/crypto/keccak
-
+import gleeth/ethereum/abi/encode as abi_encode
+import gleeth/ethereum/abi/types as abi_types
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/hex
 
-// Supported parameter types for contract calls
+// Supported parameter types for contract calls (legacy API)
 pub type ParamType {
   UInt256
   Address
@@ -26,125 +27,34 @@ pub type ContractCall {
   ContractCall(function_name: String, parameters: List(Parameter))
 }
 
-// Generate function selector using dynamic keccak256 hashing
+// Generate function selector using the ABI encoder
 pub fn generate_function_selector(
   function_name: String,
   param_types: List(ParamType),
 ) -> Result(String, rpc_types.GleethError) {
-  let signature = generate_function_signature(function_name, param_types)
-
-  // Use our keccak implementation to generate the selector
-  case keccak.function_selector(signature) {
-    Ok(selector) -> Ok(selector)
-    Error(msg) -> Error(rpc_types.ParseError(msg))
+  let abi_types = list.map(param_types, param_type_to_abi_type)
+  case abi_encode.function_selector(function_name, abi_types) {
+    Ok(selector) -> Ok(hex.encode(selector))
+    Error(err) -> Error(abi_error_to_gleeth_error(err))
   }
 }
 
-// Generate function signature string
-fn generate_function_signature(
-  function_name: String,
-  param_types: List(ParamType),
-) -> String {
-  let type_strings = list.map(param_types, param_type_to_string)
-  let params_str = string.join(type_strings, ",")
-  function_name <> "(" <> params_str <> ")"
-}
-
-// Convert parameter type to ABI string
-fn param_type_to_string(param_type: ParamType) -> String {
-  case param_type {
-    UInt256 -> "uint256"
-    Address -> "address"
-    String -> "string"
-    Bool -> "bool"
-    Bytes32 -> "bytes32"
-  }
-}
-
-// Encode parameters for contract call
+// Encode parameters for contract call using the ABI encoder
 pub fn encode_parameters(
   parameters: List(Parameter),
 ) -> Result(String, rpc_types.GleethError) {
   case parameters {
     [] -> Ok("")
     params -> {
-      use encoded_params <- result.try(list.try_map(
-        params,
-        encode_single_parameter,
-      ))
-      Ok(string.concat(encoded_params))
-    }
-  }
-}
-
-// Encode a single parameter
-fn encode_single_parameter(
-  parameter: Parameter,
-) -> Result(String, rpc_types.GleethError) {
-  case parameter.param_type {
-    UInt256 -> encode_uint256(parameter.value)
-    Address -> encode_address(parameter.value)
-    Bool -> encode_bool(parameter.value)
-    Bytes32 -> encode_bytes32(parameter.value)
-    String -> Error(rpc_types.ParseError("String encoding not yet implemented"))
-  }
-}
-
-// Encode uint256 parameter (pad to 32 bytes)
-fn encode_uint256(value: String) -> Result(String, rpc_types.GleethError) {
-  // Handle hex values vs decimal
-  let hex_value = case hex.strip_prefix(value) {
-    clean_hex if clean_hex == value -> {
-      // No 0x prefix, could be decimal
-      case int.parse(value) {
-        Ok(int_val) -> int_to_hex(int_val)
-        Error(_) -> value
-        // Assume it's already hex without 0x prefix
+      use abi_pairs <- result.try(
+        list.try_map(params, param_to_abi_pair)
+        |> result.map_error(fn(e) { abi_error_to_gleeth_error(e) }),
+      )
+      case abi_encode.encode(abi_pairs) {
+        Ok(encoded) -> Ok(string.lowercase(bit_array.base16_encode(encoded)))
+        Error(err) -> Error(abi_error_to_gleeth_error(err))
       }
     }
-    clean_hex -> clean_hex
-  }
-
-  // Pad to 64 hex characters (32 bytes)
-  let padded = string.pad_start(hex_value, 64, "0")
-  Ok(padded)
-}
-
-// Encode address parameter (pad to 32 bytes)
-fn encode_address(value: String) -> Result(String, rpc_types.GleethError) {
-  let clean_address = hex.strip_prefix(value)
-
-  // Validate address length
-  case string.length(clean_address) {
-    40 -> {
-      // Pad address to 32 bytes (24 zeros + 20 bytes address)
-      // Convert to lowercase for consistency
-      let lowercase_address = string.lowercase(clean_address)
-      let padded = string.pad_start(lowercase_address, 64, "0")
-      Ok(padded)
-    }
-    _ -> Error(rpc_types.InvalidAddress("Address must be 40 hex characters"))
-  }
-}
-
-// Encode boolean parameter
-fn encode_bool(value: String) -> Result(String, rpc_types.GleethError) {
-  case string.lowercase(value) {
-    "true" | "1" -> Ok(string.pad_start("1", 64, "0"))
-    "false" | "0" -> Ok(string.pad_start("0", 64, "0"))
-    _ ->
-      Error(rpc_types.ParseError("Boolean must be 'true', 'false', '1', or '0'"))
-  }
-}
-
-// Encode bytes32 parameter
-fn encode_bytes32(value: String) -> Result(String, rpc_types.GleethError) {
-  let clean_value = hex.strip_prefix(value)
-
-  case string.length(clean_value) {
-    64 -> Ok(clean_value)
-    len if len < 64 -> Ok(string.pad_end(clean_value, 64, "0"))
-    _ -> Error(rpc_types.ParseError("bytes32 value too long"))
   }
 }
 
@@ -152,19 +62,38 @@ fn encode_bytes32(value: String) -> Result(String, rpc_types.GleethError) {
 pub fn build_call_data(
   contract_call: ContractCall,
 ) -> Result(String, rpc_types.GleethError) {
-  let param_types = list.map(contract_call.parameters, fn(p) { p.param_type })
+  let abi_type_list =
+    list.map(contract_call.parameters, fn(p) {
+      param_type_to_abi_type(p.param_type)
+    })
 
-  use selector <- result.try(generate_function_selector(
-    contract_call.function_name,
-    param_types,
-  ))
+  use abi_pairs <- result.try(
+    list.try_map(contract_call.parameters, param_to_abi_pair)
+    |> result.map_error(fn(e) { abi_error_to_gleeth_error(e) }),
+  )
 
-  use encoded_params <- result.try(encode_parameters(contract_call.parameters))
-
-  // Remove 0x prefix from selector for concatenation
-  let clean_selector = hex.strip_prefix(selector)
-
-  Ok(hex.ensure_prefix(clean_selector <> encoded_params))
+  case
+    abi_encode.function_selector(contract_call.function_name, abi_type_list)
+  {
+    Ok(selector) -> {
+      case abi_pairs {
+        [] -> Ok(hex.encode(selector))
+        _ -> {
+          case abi_encode.encode(abi_pairs) {
+            Ok(encoded) -> {
+              let selector_hex =
+                string.lowercase(bit_array.base16_encode(selector))
+              let params_hex =
+                string.lowercase(bit_array.base16_encode(encoded))
+              Ok("0x" <> selector_hex <> params_hex)
+            }
+            Error(err) -> Error(abi_error_to_gleeth_error(err))
+          }
+        }
+      }
+    }
+    Error(err) -> Error(abi_error_to_gleeth_error(err))
+  }
 }
 
 // Parse parameter string into Parameter type
@@ -181,7 +110,104 @@ pub fn parse_parameter(
   }
 }
 
-// Parse parameter type from string
+// ---------------------------------------------------------------------------
+// Internal: conversion between legacy ParamType and new ABI types
+// ---------------------------------------------------------------------------
+
+fn param_type_to_abi_type(param_type: ParamType) -> abi_types.AbiType {
+  case param_type {
+    UInt256 -> abi_types.Uint(256)
+    Address -> abi_types.Address
+    String -> abi_types.String
+    Bool -> abi_types.Bool
+    Bytes32 -> abi_types.FixedBytes(32)
+  }
+}
+
+fn param_to_abi_pair(
+  param: Parameter,
+) -> Result(#(abi_types.AbiType, abi_types.AbiValue), abi_types.AbiError) {
+  let abi_type = param_type_to_abi_type(param.param_type)
+  use abi_value <- result.try(string_to_abi_value(param.param_type, param.value))
+  Ok(#(abi_type, abi_value))
+}
+
+fn string_to_abi_value(
+  param_type: ParamType,
+  value: String,
+) -> Result(abi_types.AbiValue, abi_types.AbiError) {
+  case param_type {
+    UInt256 -> parse_uint_value(value)
+    Address -> Ok(abi_types.AddressValue(value))
+    String -> Ok(abi_types.StringValue(value))
+    Bool -> parse_bool_value(value)
+    Bytes32 -> parse_bytes32_value(value)
+  }
+}
+
+fn parse_uint_value(
+  value: String,
+) -> Result(abi_types.AbiValue, abi_types.AbiError) {
+  // Try decimal first, then hex
+  case int.parse(value) {
+    Ok(n) -> Ok(abi_types.UintValue(n))
+    Error(_) -> {
+      case hex.to_int(value) {
+        Ok(n) -> Ok(abi_types.UintValue(n))
+        Error(_) ->
+          Error(abi_types.EncodeError("Cannot parse uint value: " <> value))
+      }
+    }
+  }
+}
+
+fn parse_bool_value(
+  value: String,
+) -> Result(abi_types.AbiValue, abi_types.AbiError) {
+  case string.lowercase(value) {
+    "true" | "1" -> Ok(abi_types.BoolValue(True))
+    "false" | "0" -> Ok(abi_types.BoolValue(False))
+    _ ->
+      Error(abi_types.EncodeError(
+        "Boolean must be 'true', 'false', '1', or '0'",
+      ))
+  }
+}
+
+fn parse_bytes32_value(
+  value: String,
+) -> Result(abi_types.AbiValue, abi_types.AbiError) {
+  case hex.decode(value) {
+    Ok(bytes) -> {
+      let size = bit_array.byte_size(bytes)
+      case size <= 32 {
+        True -> {
+          // Right-pad to exactly 32 bytes
+          let padding = make_zero_bytes(32 - size)
+          Ok(abi_types.FixedBytesValue(bit_array.concat([bytes, padding])))
+        }
+        False -> Error(abi_types.EncodeError("bytes32 value too long"))
+      }
+    }
+    Error(_) ->
+      Error(abi_types.EncodeError("Invalid hex for bytes32: " <> value))
+  }
+}
+
+fn make_zero_bytes(n: Int) -> BitArray {
+  case n <= 0 {
+    True -> <<>>
+    False -> make_zero_bytes_acc(n, <<>>)
+  }
+}
+
+fn make_zero_bytes_acc(n: Int, acc: BitArray) -> BitArray {
+  case n <= 0 {
+    True -> acc
+    False -> make_zero_bytes_acc(n - 1, <<acc:bits, 0:8>>)
+  }
+}
+
 fn parse_param_type(
   type_str: String,
 ) -> Result(ParamType, rpc_types.GleethError) {
@@ -195,42 +221,11 @@ fn parse_param_type(
   }
 }
 
-// Helper function to convert integer to hex string
-fn int_to_hex(value: Int) -> String {
-  int_to_hex_recursive(value, "")
-}
-
-// Recursive helper for int to hex conversion
-fn int_to_hex_recursive(value: Int, acc: String) -> String {
-  case value {
-    0 ->
-      case acc {
-        "" -> "0"
-        _ -> acc
-      }
-    _ -> {
-      let remainder = value % 16
-      let quotient = value / 16
-      let hex_char = case remainder {
-        0 -> "0"
-        1 -> "1"
-        2 -> "2"
-        3 -> "3"
-        4 -> "4"
-        5 -> "5"
-        6 -> "6"
-        7 -> "7"
-        8 -> "8"
-        9 -> "9"
-        10 -> "a"
-        11 -> "b"
-        12 -> "c"
-        13 -> "d"
-        14 -> "e"
-        15 -> "f"
-        _ -> "0"
-      }
-      int_to_hex_recursive(quotient, hex_char <> acc)
-    }
+fn abi_error_to_gleeth_error(err: abi_types.AbiError) -> rpc_types.GleethError {
+  case err {
+    abi_types.EncodeError(msg) -> rpc_types.AbiError(msg)
+    abi_types.DecodeError(msg) -> rpc_types.AbiError(msg)
+    abi_types.TypeParseError(msg) -> rpc_types.AbiError(msg)
+    abi_types.InvalidAbiJson(msg) -> rpc_types.AbiError(msg)
   }
 }

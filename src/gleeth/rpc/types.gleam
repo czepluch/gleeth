@@ -75,4 +75,5 @@ pub type GleethError {
   NetworkError(String)
   ParseError(String)
   ConfigError(String)
+  AbiError(String)
 }

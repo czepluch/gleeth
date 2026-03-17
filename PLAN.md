@@ -18,11 +18,11 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - Proper JSON decoding with gleam_json decoders (replaced manual string parsing)
 - Concurrent balance checking with BEAM process batching
 - GLEETH_RPC_URL environment variable support
-- 170 tests, zero warnings (including Foundry-verified signing vectors and anvil integration)
+- Full ABI encoding/decoding (all Solidity types, head/tail, JSON ABI parsing, event log decoding)
+- 278 tests, zero warnings (including Foundry-verified signing vectors and anvil integration)
 
 ### What doesn't work
 
-- ABI only handles uint256, address, bool, bytes32
 - CI workflow fails (outdated Gleam version, missing Elixir)
 
 ## Phase 1: Foundation fixes
@@ -83,24 +83,30 @@ EIP-2930 (Type 1, access list only) is rarely used standalone and can be deferre
 
 Future: expand signing test coverage significantly - more edge cases (zero-value fields, max-size calldata, multiple access list entries, unusual chain IDs, contract creation with empty `to`), fuzz testing with random transaction parameters verified against Foundry, and cross-client verification (e.g. comparing against ethers.js or web3.py output). Low priority but valuable for long-term confidence.
 
-## Phase 4: ABI system
+## Phase 4: ABI system - DONE
 
-### 4.1 Complete parameter encoding
+Full ABI encoder/decoder implemented in `ethereum/abi/` with 108 tests covering encoding, decoding, roundtrips, type parsing, JSON ABI, and function selectors.
 
-- Add support for: int types (int8-int256), bytes (dynamic), string, arrays (fixed and dynamic), tuples
-- Implement ABI head/tail encoding for dynamic types
+### 4.1 Complete parameter encoding - DONE
 
-### 4.2 JSON ABI parsing
+- Type system: all Solidity ABI types (uint/int 8-256, address, bool, bytesN, bytes, string, T[], T[k], tuples)
+- Full head/tail encoding per Solidity ABI spec
+- Two's complement for signed integers, proper left/right padding
+- Function selector computation (keccak256 of canonical signature)
+- `contract.gleam` refactored to delegate to `abi/encode.gleam`
 
-- Parse standard Solidity JSON ABI files
+### 4.2 JSON ABI parsing - DONE
+
+- Parse standard Solidity JSON ABI files into typed entries (functions, events)
 - Generate function selectors from parsed ABI
-- Type-safe call data building from ABI definitions
+- `call` command accepts `--abi <file>` for typed response decoding
+- Recursive type string parser handles nested arrays and tuples
 
-### 4.3 Event log decoding
+### 4.3 Event log decoding - DONE
 
-- Decode indexed parameters from log topics
-- Decode non-indexed parameters from log data
-- Match logs to ABI event definitions
+- Decode indexed parameters from log topics (static types decoded, dynamic types returned as hash)
+- Decode non-indexed parameters from log data via ABI decoder
+- Match logs to ABI event definitions by topic0 hash
 
 ## Phase 5: Provider abstraction
 

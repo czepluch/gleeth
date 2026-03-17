@@ -11,7 +11,12 @@ import gleeth/utils/validation
 pub type Command {
   BlockNumber
   Balance(addresses: List(eth_types.Address), file: Option(String))
-  Call(contract: eth_types.Address, function: String, parameters: List(String))
+  Call(
+    contract: eth_types.Address,
+    function: String,
+    parameters: List(String),
+    abi_file: Option(String),
+  )
   Transaction(hash: eth_types.Hash)
   Code(address: eth_types.Address)
   EstimateGas(from: String, to: String, value: String, data: String)
@@ -59,9 +64,9 @@ pub fn parse_args(args: List(String)) -> Result(Args, rpc_types.GleethError) {
 
     ["call", contract, function, ..rest] -> {
       use validated_contract <- result.try(validation.validate_address(contract))
-      let #(parameters, rpc_args) = extract_parameters_and_rpc(rest)
+      let #(parameters, abi_file, rpc_args) = extract_call_args(rest)
       use rpc_url <- result.try(extract_rpc_url(rpc_args))
-      Ok(Args(Call(validated_contract, function, parameters), rpc_url))
+      Ok(Args(Call(validated_contract, function, parameters, abi_file), rpc_url))
     }
 
     ["transaction", hash, ..rest] -> {
@@ -200,24 +205,25 @@ fn get_env_rpc_url() -> Result(String, Nil) {
 @external(erlang, "gleeth_ffi", "get_env")
 fn get_env(name: String) -> Result(String, Nil)
 
-// Extract parameters and RPC arguments from argument list
-// Parameters come before --rpc-url flag
-fn extract_parameters_and_rpc(
+// Extract parameters, --abi flag, and RPC arguments from call command args
+fn extract_call_args(
   args: List(String),
-) -> #(List(String), List(String)) {
-  extract_parameters_and_rpc_helper(args, [])
+) -> #(List(String), Option(String), List(String)) {
+  extract_call_args_helper(args, [], None)
 }
 
-// Helper function to recursively extract parameters
-fn extract_parameters_and_rpc_helper(
+fn extract_call_args_helper(
   args: List(String),
   parameters: List(String),
-) -> #(List(String), List(String)) {
+  abi_file: Option(String),
+) -> #(List(String), Option(String), List(String)) {
   case args {
-    ["--rpc-url", ..] -> #(list.reverse(parameters), args)
+    ["--rpc-url", ..] -> #(list.reverse(parameters), abi_file, args)
+    ["--abi", file, ..rest] ->
+      extract_call_args_helper(rest, parameters, Some(file))
     [param, ..rest] ->
-      extract_parameters_and_rpc_helper(rest, [param, ..parameters])
-    [] -> #(list.reverse(parameters), [])
+      extract_call_args_helper(rest, [param, ..parameters], abi_file)
+    [] -> #(list.reverse(parameters), abi_file, [])
   }
 }
 
@@ -545,6 +551,11 @@ pub fn show_help() -> Nil {
   io.println("")
   io.println("OPTIONS:")
   io.println("  --rpc-url <URL>                RPC endpoint URL")
+  io.println("")
+  io.println("CALL OPTIONS:")
+  io.println(
+    "  --abi <file>                   JSON ABI file for typed encoding/decoding",
+  )
   io.println("")
   io.println("ESTIMATE-GAS OPTIONS:")
   io.println("  --from <address>               Sender address (optional)")

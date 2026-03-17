@@ -1,14 +1,19 @@
+import gleam/bit_array
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import gleeth/ethereum/abi/decode as abi_decode
+import gleeth/ethereum/abi/json as abi_json
+import gleeth/ethereum/abi/types as abi_types
 import gleeth/ethereum/contract
-
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/hex
 import gleeth/utils/validation
+import simplifile
 
 // Execute a contract function call
 pub fn execute(
@@ -16,6 +21,7 @@ pub fn execute(
   contract_address: String,
   function_call: String,
   parameters: List(String),
+  abi_file: Option(String),
 ) -> Result(Nil, rpc_types.GleethError) {
   // Validate contract address
   use validated_address <- result.try(validation.validate_address(
@@ -43,7 +49,13 @@ pub fn execute(
   ))
 
   // Display results
-  print_contract_response(contract_address, function_call, parameters, response)
+  print_contract_response(
+    contract_address,
+    function_call,
+    parameters,
+    response,
+    abi_file,
+  )
   Ok(Nil)
 }
 
@@ -60,6 +72,7 @@ fn print_contract_response(
   function_name: String,
   parameters: List(String),
   response: String,
+  abi_file: Option(String),
 ) -> Nil {
   io.println("Contract Call Results:")
   io.println("  Contract: " <> contract_address)
@@ -75,50 +88,141 @@ fn print_contract_response(
 
   io.println("  Raw Response: " <> response)
 
-  // Try to decode common response types
-  case decode_response(function_name, response) {
-    Ok(decoded) -> io.println("  Decoded: " <> decoded)
-    Error(_) -> Nil
+  // Try ABI-based decoding first, then fall back to heuristic
+  case abi_file {
+    Some(file) -> {
+      case decode_with_abi(file, function_name, response) {
+        Ok(decoded) -> io.println("  Decoded: " <> decoded)
+        Error(err) -> {
+          io.println("  ABI decode failed: " <> abi_error_message(err))
+          // Fall back to heuristic
+          case decode_response(function_name, response) {
+            Ok(decoded) -> io.println("  Decoded (heuristic): " <> decoded)
+            Error(_) -> Nil
+          }
+        }
+      }
+    }
+    None -> {
+      case decode_response(function_name, response) {
+        Ok(decoded) -> io.println("  Decoded: " <> decoded)
+        Error(_) -> Nil
+      }
+    }
   }
 }
 
-// Decode contract response based on function type
+// ---------------------------------------------------------------------------
+// ABI-based decoding
+// ---------------------------------------------------------------------------
+
+fn decode_with_abi(
+  abi_file: String,
+  function_name: String,
+  response: String,
+) -> Result(String, abi_types.AbiError) {
+  // Read ABI file
+  use abi_json_str <- result.try(
+    simplifile.read(abi_file)
+    |> result.map_error(fn(_) {
+      abi_types.InvalidAbiJson("Cannot read ABI file: " <> abi_file)
+    }),
+  )
+
+  // Parse ABI
+  use entries <- result.try(abi_json.parse_abi(abi_json_str))
+
+  // Find the function
+  use entry <- result.try(abi_json.find_function(entries, function_name))
+
+  let output_types = abi_json.output_types(entry)
+
+  case output_types {
+    [] -> Ok("(void)")
+    _ -> {
+      // Decode the response hex
+      use data <- result.try(
+        hex.decode(response)
+        |> result.map_error(fn(_) {
+          abi_types.DecodeError("Invalid hex in response")
+        }),
+      )
+      use values <- result.try(abi_decode.decode(output_types, data))
+      Ok(format_abi_values(output_types, values))
+    }
+  }
+}
+
+fn format_abi_values(
+  types: List(abi_types.AbiType),
+  values: List(abi_types.AbiValue),
+) -> String {
+  let pairs = list.zip(types, values)
+  let formatted =
+    list.map(pairs, fn(pair) {
+      let #(t, v) = pair
+      format_single_value(t, v)
+    })
+  case formatted {
+    [single] -> single
+    multiple -> "(" <> string.join(multiple, ", ") <> ")"
+  }
+}
+
+fn format_single_value(t: abi_types.AbiType, v: abi_types.AbiValue) -> String {
+  case t, v {
+    abi_types.Uint(_), abi_types.UintValue(n) -> int.to_string(n)
+    abi_types.Int(_), abi_types.IntValue(n) -> int.to_string(n)
+    abi_types.Address, abi_types.AddressValue(addr) -> addr
+    abi_types.Bool, abi_types.BoolValue(b) ->
+      case b {
+        True -> "true"
+        False -> "false"
+      }
+    abi_types.FixedBytes(size), abi_types.FixedBytesValue(data) ->
+      "0x"
+      <> string.lowercase(bit_array.base16_encode(data))
+      |> string.slice(0, 2 + size * 2)
+    abi_types.Bytes, abi_types.BytesValue(data) ->
+      "0x" <> string.lowercase(bit_array.base16_encode(data))
+    abi_types.String, abi_types.StringValue(s) -> "\"" <> s <> "\""
+    abi_types.Array(element_type), abi_types.ArrayValue(elements) -> {
+      let inner =
+        list.map(elements, fn(el) { format_single_value(element_type, el) })
+      "[" <> string.join(inner, ", ") <> "]"
+    }
+    abi_types.Tuple(element_types), abi_types.TupleValue(vals) ->
+      format_abi_values(element_types, vals)
+    _, _ -> "<unknown>"
+  }
+}
+
+fn abi_error_message(err: abi_types.AbiError) -> String {
+  case err {
+    abi_types.EncodeError(msg) -> msg
+    abi_types.DecodeError(msg) -> msg
+    abi_types.TypeParseError(msg) -> msg
+    abi_types.InvalidAbiJson(msg) -> msg
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Heuristic decoding (fallback when no ABI is provided)
+// ---------------------------------------------------------------------------
+
 fn decode_response(
   function_name: String,
   response: String,
 ) -> Result(String, rpc_types.GleethError) {
-  // Remove 0x prefix for processing
-  let clean_response = case string.starts_with(response, "0x") {
-    True -> string.drop_start(response, 2)
-    False -> response
-  }
+  let clean_response = hex.strip_prefix(response)
 
   case function_name {
-    // Functions that return uint256
-    "balanceOf" | "totalSupply" | "allowance" | "decimals" -> {
+    "balanceOf" | "totalSupply" | "allowance" | "decimals" ->
       decode_uint256(clean_response)
-    }
-
-    // Functions that return addresses  
-    "owner" | "token0" | "token1" -> {
-      decode_address(clean_response)
-    }
-
-    // Functions that return strings (more complex, simplified for now)
-    "name" | "symbol" -> {
-      decode_string_simple(clean_response)
-    }
-
-    // Functions that return boolean
-    "approve" | "transfer" -> {
-      decode_bool(clean_response)
-    }
-
-    // Special cases
-    "getReserves" -> {
-      decode_reserves(clean_response)
-    }
-
+    "owner" | "token0" | "token1" -> decode_address(clean_response)
+    "name" | "symbol" -> decode_string_abi(clean_response)
+    "approve" | "transfer" -> decode_bool(clean_response)
+    "getReserves" -> decode_reserves(clean_response)
     _ ->
       Error(rpc_types.ParseError(
         "Unknown return type for function: " <> function_name,
@@ -126,7 +230,6 @@ fn decode_response(
   }
 }
 
-// Decode uint256 from response
 fn decode_uint256(hex_data: String) -> Result(String, rpc_types.GleethError) {
   case string.length(hex_data) >= 64 {
     True -> {
@@ -141,11 +244,9 @@ fn decode_uint256(hex_data: String) -> Result(String, rpc_types.GleethError) {
   }
 }
 
-// Decode address from response
 fn decode_address(hex_data: String) -> Result(String, rpc_types.GleethError) {
   case string.length(hex_data) >= 64 {
     True -> {
-      // Address is in the last 40 characters (20 bytes)
       let address_hex = string.slice(hex_data, 24, 40)
       Ok("0x" <> address_hex)
     }
@@ -153,7 +254,6 @@ fn decode_address(hex_data: String) -> Result(String, rpc_types.GleethError) {
   }
 }
 
-// Decode boolean from response
 fn decode_bool(hex_data: String) -> Result(String, rpc_types.GleethError) {
   case string.length(hex_data) >= 64 {
     True -> {
@@ -168,23 +268,38 @@ fn decode_bool(hex_data: String) -> Result(String, rpc_types.GleethError) {
   }
 }
 
-// Simple string decoding (assumes ASCII, no dynamic length handling)
-fn decode_string_simple(
-  hex_data: String,
-) -> Result(String, rpc_types.GleethError) {
-  case string.length(hex_data) >= 64 {
+fn decode_string_abi(hex_data: String) -> Result(String, rpc_types.GleethError) {
+  // Try proper ABI string decoding: offset + length + data
+  case string.length(hex_data) >= 192 {
     True -> {
-      // For simplicity, just show hex for now
-      // Proper string decoding requires handling dynamic length and UTF-8
-      Ok(
-        "0x" <> string.slice(hex_data, 0, 64) <> " (string decoding simplified)",
-      )
+      // Read length from second slot
+      let length_hex = string.slice(hex_data, 64, 64)
+      case hex.hex_to_int(length_hex) {
+        Ok(length) -> {
+          // Read string data starting at third slot
+          let data_hex = string.slice(hex_data, 128, length * 2)
+          case hex.decode("0x" <> data_hex) {
+            Ok(bytes) -> {
+              case bit_array.to_string(bytes) {
+                Ok(s) -> Ok("\"" <> s <> "\"")
+                Error(_) -> Ok("0x" <> data_hex <> " (non-UTF-8)")
+              }
+            }
+            Error(_) -> Ok("0x" <> string.slice(hex_data, 0, 64))
+          }
+        }
+        Error(_) -> Ok("0x" <> string.slice(hex_data, 0, 64))
+      }
     }
-    False -> Error(rpc_types.ParseError("Response too short for string"))
+    False -> {
+      case string.length(hex_data) >= 64 {
+        True -> Ok("0x" <> string.slice(hex_data, 0, 64))
+        False -> Error(rpc_types.ParseError("Response too short for string"))
+      }
+    }
   }
 }
 
-// Decode Uniswap-style getReserves() response
 fn decode_reserves(hex_data: String) -> Result(String, rpc_types.GleethError) {
   case string.length(hex_data) >= 192 {
     True -> {

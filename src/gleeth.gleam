@@ -57,8 +57,8 @@ fn execute_command(command: cli.Command, rpc_url: String) -> Nil {
   let result = case command {
     cli.BlockNumber -> block_number.execute(rpc_url)
     cli.Balance(addresses, file) -> balance.execute(rpc_url, addresses, file)
-    cli.Call(contract, function, parameters) ->
-      call.execute(rpc_url, contract, function, parameters)
+    cli.Call(contract, function, parameters, abi_file) ->
+      call.execute(rpc_url, contract, function, parameters, abi_file)
     cli.Transaction(hash) -> transaction.execute(rpc_url, hash)
     cli.Code(address) -> code.execute(rpc_url, address)
     cli.EstimateGas(from, to, value, data) ->
@@ -103,5 +103,6 @@ fn print_error(error: rpc_types.GleethError) -> Nil {
     rpc_types.ParseError(msg) -> formatting.print_error("Parse error: " <> msg)
     rpc_types.ConfigError(msg) ->
       formatting.print_error("Configuration error: " <> msg)
+    rpc_types.AbiError(msg) -> formatting.print_error("ABI error: " <> msg)
   }
 }

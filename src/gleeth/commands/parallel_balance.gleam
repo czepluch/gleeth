@@ -138,6 +138,7 @@ fn error_to_string(error: rpc_types.GleethError) -> String {
     rpc_types.NetworkError(msg) -> "Network error: " <> msg
     rpc_types.ParseError(msg) -> "Parse error: " <> msg
     rpc_types.ConfigError(msg) -> "Config error: " <> msg
+    rpc_types.AbiError(msg) -> "ABI error: " <> msg
   }
 }
 
