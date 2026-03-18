@@ -154,42 +154,6 @@ pub fn sign_personal_message(
 }
 
 // =============================================================================
-// Transaction Signing (Placeholder for future implementation)
-// =============================================================================
-
-/// Transaction parameters for signing
-pub type TransactionParams {
-  TransactionParams(
-    to: String,
-    // Recipient address
-    value: String,
-    // Value in wei (as hex string)
-    gas_limit: String,
-    // Gas limit (as hex string)
-    gas_price: String,
-    // Gas price in wei (as hex string)
-    nonce: String,
-    // Transaction nonce (as hex string)
-    data: String,
-    // Transaction data (as hex string)
-    chain_id: Int,
-    // Network chain ID
-  )
-}
-
-/// Sign a transaction (placeholder for future implementation)
-/// This would require RLP encoding which is not yet implemented
-pub fn sign_transaction(
-  _wallet: Wallet,
-  _params: TransactionParams,
-) -> Result(String, WalletError) {
-  // Placeholder implementation
-  Error(SigningFailed(
-    "Transaction signing not yet implemented - requires RLP encoding",
-  ))
-}
-
-// =============================================================================
 // Utility Functions
 // =============================================================================
 
