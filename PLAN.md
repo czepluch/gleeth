@@ -19,27 +19,12 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - Concurrent balance checking with BEAM process batching
 - GLEETH_RPC_URL environment variable support
 - Full ABI encoding/decoding (all Solidity types, head/tail, JSON ABI parsing, event log decoding)
-- 278 tests, zero warnings (including Foundry-verified signing vectors and anvil integration)
+- 292 tests, zero warnings (including Foundry-verified signing vectors and anvil integration)
+- CI workflow: Gleam 1.14.0, OTP 28, Elixir 1.19
 
-### What doesn't work
+## Phase 1: Foundation fixes - DONE
 
-- CI workflow fails (outdated Gleam version, missing Elixir)
-
-## Phase 1: Foundation fixes
-
-### 1.1 Fix CI workflow
-
-- Update `.github/workflows/test.yml`:
-  - Gleam version: 1.10.0 -> 1.14.0
-  - OTP version: 27.1.2 -> 28
-  - Add Elixir installation (needed for ex_keccak/ex_secp256k1 NIF compilation)
-  - Add `mix local.hex --force` step before `gleam deps download`
-
-### 1.2 Clean up project docs
-
-- Delete `PROJECT_STATUS.md` (stale, references 33 tests and outdated feature status)
-- Delete `PHASE_1_2_1_SUMMARY.md` (historical, no longer actionable)
-- This file (`PLAN.md`) replaces both
+CI workflow fixed (Gleam 1.14.0, OTP 28, Elixir 1.19, mix local.hex). Stale docs cleaned up.
 
 ## Phase 2: RLP encoding - DONE
 
