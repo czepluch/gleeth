@@ -142,7 +142,7 @@ Set `GLEETH_RPC_URL` to avoid passing `--rpc-url` every time.
 
 ```sh
 gleam build          # Compile
-gleam test           # Run all 292 tests
+gleam test           # Run all 285 tests
 gleam format         # Format code
 gleam docs build     # Generate documentation
 ```

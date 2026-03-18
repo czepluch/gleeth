@@ -7,9 +7,6 @@ import gleam/option.{type Option, None, Some}
 
 import gleam/result
 import gleam/string
-import gleeth/crypto/transaction
-import gleeth/crypto/wallet
-import gleeth/ethereum/abi/types as abi_types
 import gleeth/ethereum/types.{type Address, type Wei}
 import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
@@ -132,30 +129,8 @@ fn check_single_balance(provider: Provider, address: Address) -> BalanceResult {
   }
 }
 
-// Convert GleethError to string
 fn error_to_string(error: rpc_types.GleethError) -> String {
-  case error {
-    rpc_types.InvalidRpcUrl(msg) -> "Invalid RPC URL: " <> msg
-    rpc_types.InvalidAddress(msg) -> "Invalid address: " <> msg
-    rpc_types.InvalidHash(msg) -> "Invalid hash: " <> msg
-    rpc_types.RpcError(msg) -> "RPC error: " <> msg
-    rpc_types.NetworkError(msg) -> "Network error: " <> msg
-    rpc_types.ParseError(msg) -> "Parse error: " <> msg
-    rpc_types.ConfigError(msg) -> "Config error: " <> msg
-    rpc_types.AbiErr(err) -> "ABI error: " <> abi_error_message(err)
-    rpc_types.WalletErr(err) -> "Wallet error: " <> wallet.error_to_string(err)
-    rpc_types.TransactionErr(err) ->
-      "Transaction error: " <> transaction.error_to_string(err)
-  }
-}
-
-fn abi_error_message(err: abi_types.AbiError) -> String {
-  case err {
-    abi_types.EncodeError(msg) -> msg
-    abi_types.DecodeError(msg) -> msg
-    abi_types.TypeParseError(msg) -> msg
-    abi_types.InvalidAbiJson(msg) -> msg
-  }
+  rpc_types.error_to_string(error)
 }
 
 // Display results in a nice table format

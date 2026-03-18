@@ -19,7 +19,7 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - Concurrent balance checking with BEAM process batching
 - GLEETH_RPC_URL environment variable support
 - Full ABI encoding/decoding (all Solidity types, head/tail, JSON ABI parsing, event log decoding)
-- 292 tests, zero warnings (including Foundry-verified signing vectors and anvil integration)
+- 285 tests, zero warnings (including Foundry-verified signing vectors and anvil integration)
 - CI workflow: Gleam 1.14.0, OTP 28, Elixir 1.19
 
 ## Phase 1: Foundation fixes - DONE

@@ -1,4 +1,5 @@
 import gleam/bit_array
+import gleam/list
 import gleeth/crypto/random
 import gleeth/crypto/secp256k1
 import gleeunit
@@ -135,17 +136,17 @@ pub fn generate_multiple_private_keys_test() {
   let keys = generate_private_keys_list(count, [])
 
   keys
-  |> list_length()
+  |> list.length()
   |> should.equal(count)
 
   // Verify all keys are valid
   test_each_key_valid(keys)
 
   // Verify all keys are unique (convert to hex for comparison)
-  let hex_keys = keys |> list_map(secp256k1.private_key_to_hex)
-  let unique_keys = list_unique(hex_keys)
+  let hex_keys = keys |> list.map(secp256k1.private_key_to_hex)
+  let unique_keys = list.unique(hex_keys)
 
-  list_length(unique_keys)
+  list.length(unique_keys)
   |> should.equal(count)
 }
 
@@ -382,51 +383,6 @@ fn wallet_sign_personal_message(
 
 type MockWallet {
   MockWallet
-}
-
-// Helper list functions
-fn list_length(list: List(a)) -> Int {
-  list_length_acc(list, 0)
-}
-
-fn list_length_acc(list: List(a), acc: Int) -> Int {
-  case list {
-    [] -> acc
-    [_, ..rest] -> list_length_acc(rest, acc + 1)
-  }
-}
-
-fn list_map(list: List(a), f: fn(a) -> b) -> List(b) {
-  case list {
-    [] -> []
-    [head, ..tail] -> [f(head), ..list_map(tail, f)]
-  }
-}
-
-fn list_unique(list: List(a)) -> List(a) {
-  list_unique_acc(list, [])
-}
-
-fn list_unique_acc(list: List(a), acc: List(a)) -> List(a) {
-  case list {
-    [] -> acc
-    [head, ..rest] ->
-      case list_contains(acc, head) {
-        True -> list_unique_acc(rest, acc)
-        False -> list_unique_acc(rest, [head, ..acc])
-      }
-  }
-}
-
-fn list_contains(list: List(a), element: a) -> Bool {
-  case list {
-    [] -> False
-    [head, ..rest] ->
-      case head == element {
-        True -> True
-        False -> list_contains(rest, element)
-      }
-  }
 }
 
 // Helper functions for testing

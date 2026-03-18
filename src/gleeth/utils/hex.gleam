@@ -94,32 +94,31 @@ pub fn wei_to_gwei(wei_hex: String) -> Result(Float, Nil) {
   }
 }
 
-// Handle very large Wei values using string manipulation
-fn wei_to_ether_string_division(wei_str: String) -> Result(Float, Nil) {
+// Handle very large values using string manipulation with a configurable
+// decimal digit count (18 for ether, 9 for gwei).
+fn string_division(
+  wei_str: String,
+  decimals: Int,
+  divisor: Float,
+) -> Result(Float, Nil) {
   let wei_len = string.length(wei_str)
   case wei_len {
-    len if len <= 18 -> {
-      // Less than 1 ETH
+    len if len <= decimals -> {
       case int.parse(wei_str) {
-        Ok(wei_int) -> Ok(int.to_float(wei_int) /. 1_000_000_000_000_000_000.0)
+        Ok(wei_int) -> Ok(int.to_float(wei_int) /. divisor)
         Error(_) -> Error(Nil)
       }
     }
     len -> {
-      // More than 1 ETH - split the string
-      let ether_part = string.drop_end(wei_str, 18)
-      let wei_part = string.drop_start(wei_str, len - 18)
+      let whole_part = string.drop_end(wei_str, decimals)
+      let frac_part = string.drop_start(wei_str, len - decimals)
 
-      case int.parse(ether_part) {
-        Ok(ether_int) -> {
-          let ether_float = int.to_float(ether_int)
-          case int.parse(wei_part) {
-            Ok(fraction_int) -> {
-              let fraction =
-                int.to_float(fraction_int) /. 1_000_000_000_000_000_000.0
-              Ok(ether_float +. fraction)
-            }
-            Error(_) -> Ok(ether_float)
+      case int.parse(whole_part) {
+        Ok(whole_int) -> {
+          let whole_float = int.to_float(whole_int)
+          case int.parse(frac_part) {
+            Ok(frac_int) -> Ok(whole_float +. int.to_float(frac_int) /. divisor)
+            Error(_) -> Ok(whole_float)
           }
         }
         Error(_) -> Error(Nil)
@@ -128,37 +127,12 @@ fn wei_to_ether_string_division(wei_str: String) -> Result(Float, Nil) {
   }
 }
 
-// Handle very large Wei values using string manipulation for gwei conversion
-fn wei_to_gwei_string_division(wei_str: String) -> Result(Float, Nil) {
-  let wei_len = string.length(wei_str)
-  case wei_len {
-    len if len <= 9 -> {
-      // Less than 1 gwei
-      case int.parse(wei_str) {
-        Ok(wei_int) -> Ok(int.to_float(wei_int) /. 1_000_000_000.0)
-        Error(_) -> Error(Nil)
-      }
-    }
-    len -> {
-      // More than 1 gwei - split the string
-      let gwei_part = string.drop_end(wei_str, 9)
-      let wei_part = string.drop_start(wei_str, len - 9)
+fn wei_to_ether_string_division(wei_str: String) -> Result(Float, Nil) {
+  string_division(wei_str, 18, 1_000_000_000_000_000_000.0)
+}
 
-      case int.parse(gwei_part) {
-        Ok(gwei_int) -> {
-          let gwei_float = int.to_float(gwei_int)
-          case int.parse(wei_part) {
-            Ok(fraction_int) -> {
-              let fraction = int.to_float(fraction_int) /. 1_000_000_000.0
-              Ok(gwei_float +. fraction)
-            }
-            Error(_) -> Ok(gwei_float)
-          }
-        }
-        Error(_) -> Error(Nil)
-      }
-    }
-  }
+fn wei_to_gwei_string_division(wei_str: String) -> Result(Float, Nil) {
+  string_division(wei_str, 9, 1_000_000_000.0)
 }
 
 // Format Wei to a nice Ether string with proper decimal places

@@ -97,3 +97,29 @@ pub type GleethError {
   /// Wraps a transaction signing/building error, preserving the original TransactionError.
   TransactionErr(transaction.TransactionError)
 }
+
+/// Convert a `GleethError` to a human-readable message string.
+pub fn error_to_string(error: GleethError) -> String {
+  case error {
+    InvalidRpcUrl(msg) -> "Invalid RPC URL: " <> msg
+    InvalidAddress(msg) -> "Invalid address: " <> msg
+    InvalidHash(msg) -> "Invalid hash: " <> msg
+    RpcError(msg) -> "RPC error: " <> msg
+    NetworkError(msg) -> "Network error: " <> msg
+    ParseError(msg) -> "Parse error: " <> msg
+    ConfigError(msg) -> "Configuration error: " <> msg
+    AbiErr(err) -> "ABI error: " <> abi_error_message(err)
+    WalletErr(err) -> "Wallet error: " <> wallet.error_to_string(err)
+    TransactionErr(err) ->
+      "Transaction error: " <> transaction.error_to_string(err)
+  }
+}
+
+fn abi_error_message(err: abi_types.AbiError) -> String {
+  case err {
+    abi_types.EncodeError(msg) -> msg
+    abi_types.DecodeError(msg) -> msg
+    abi_types.TypeParseError(msg) -> msg
+    abi_types.InvalidAbiJson(msg) -> msg
+  }
+}

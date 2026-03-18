@@ -10,9 +10,6 @@ import gleeth/commands/send
 import gleeth/commands/storage_at
 import gleeth/commands/transaction as transaction_cmd
 import gleeth/commands/wallet
-import gleeth/crypto/transaction
-import gleeth/crypto/wallet as crypto_wallet
-import gleeth/ethereum/abi/types as abi_types
 import gleeth/ethereum/formatting
 import gleeth/provider
 import gleeth/rpc/types as rpc_types
@@ -92,37 +89,5 @@ fn execute_command(command: cli.Command, p: provider.Provider) -> Nil {
 }
 
 fn print_error(error: rpc_types.GleethError) -> Nil {
-  case error {
-    rpc_types.InvalidRpcUrl(msg) ->
-      formatting.print_error("Invalid RPC URL: " <> msg)
-    rpc_types.InvalidAddress(msg) ->
-      formatting.print_error("Invalid address: " <> msg)
-    rpc_types.InvalidHash(msg) ->
-      formatting.print_error("Invalid hash: " <> msg)
-    rpc_types.RpcError(msg) -> formatting.print_error("RPC error: " <> msg)
-    rpc_types.NetworkError(msg) ->
-      formatting.print_error("Network error: " <> msg)
-    rpc_types.ParseError(msg) -> formatting.print_error("Parse error: " <> msg)
-    rpc_types.ConfigError(msg) ->
-      formatting.print_error("Configuration error: " <> msg)
-    rpc_types.AbiErr(err) ->
-      formatting.print_error("ABI error: " <> abi_error_message(err))
-    rpc_types.WalletErr(err) ->
-      formatting.print_error(
-        "Wallet error: " <> crypto_wallet.error_to_string(err),
-      )
-    rpc_types.TransactionErr(err) ->
-      formatting.print_error(
-        "Transaction error: " <> transaction.error_to_string(err),
-      )
-  }
-}
-
-fn abi_error_message(err: abi_types.AbiError) -> String {
-  case err {
-    abi_types.EncodeError(msg) -> msg
-    abi_types.DecodeError(msg) -> msg
-    abi_types.TypeParseError(msg) -> msg
-    abi_types.InvalidAbiJson(msg) -> msg
-  }
+  formatting.print_error(rpc_types.error_to_string(error))
 }
