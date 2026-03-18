@@ -10,8 +10,8 @@ import gleeth/commands/send
 import gleeth/commands/storage_at
 import gleeth/commands/transaction
 import gleeth/commands/wallet
-import gleeth/config
 import gleeth/ethereum/formatting
+import gleeth/provider
 import gleeth/rpc/types as rpc_types
 
 pub fn main() -> Nil {
@@ -24,9 +24,8 @@ pub fn main() -> Nil {
             cli.Help -> cli.show_help()
             cli.Wallet(wallet_args) -> execute_wallet_command(wallet_args)
             _ -> {
-              case config.new(parsed_args.rpc_url) {
-                Ok(cfg) ->
-                  execute_command(parsed_args.command, config.get_rpc_url(cfg))
+              case provider.new(parsed_args.rpc_url) {
+                Ok(p) -> execute_command(parsed_args.command, p)
                 Error(err) -> print_error(err)
               }
             }
@@ -53,23 +52,23 @@ fn execute_wallet_command(wallet_args: List(String)) -> Nil {
   }
 }
 
-fn execute_command(command: cli.Command, rpc_url: String) -> Nil {
+fn execute_command(command: cli.Command, p: provider.Provider) -> Nil {
   let result = case command {
-    cli.BlockNumber -> block_number.execute(rpc_url)
-    cli.Balance(addresses, file) -> balance.execute(rpc_url, addresses, file)
+    cli.BlockNumber -> block_number.execute(p)
+    cli.Balance(addresses, file) -> balance.execute(p, addresses, file)
     cli.Call(contract, function, parameters, abi_file) ->
-      call.execute(rpc_url, contract, function, parameters, abi_file)
-    cli.Transaction(hash) -> transaction.execute(rpc_url, hash)
-    cli.Code(address) -> code.execute(rpc_url, address)
+      call.execute(p, contract, function, parameters, abi_file)
+    cli.Transaction(hash) -> transaction.execute(p, hash)
+    cli.Code(address) -> code.execute(p, address)
     cli.EstimateGas(from, to, value, data) ->
-      estimate_gas.execute(rpc_url, from, to, value, data)
+      estimate_gas.execute(p, from, to, value, data)
     cli.StorageAt(address, slot, block) ->
-      storage_at.execute(rpc_url, address, slot, block)
+      storage_at.execute(p, address, slot, block)
     cli.GetLogs(from_block, to_block, address, topics) ->
-      get_logs.execute(rpc_url, from_block, to_block, address, topics)
+      get_logs.execute(p, from_block, to_block, address, topics)
     cli.Send(to, value, private_key, gas_limit, data, legacy) ->
       send.execute(
-        rpc_url,
+        p,
         send.SendArgs(to, value, private_key, gas_limit, data, legacy),
       )
     cli.Wallet(_) -> {

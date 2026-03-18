@@ -2,19 +2,20 @@ import gleam/int
 import gleam/io
 import gleam/result
 import gleam/string
+import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/hex
 
 // Execute storage-at command
 pub fn execute(
-  rpc_url: String,
+  provider: Provider,
   address: String,
   slot: String,
   block: String,
 ) -> Result(Nil, rpc_types.GleethError) {
   use storage_value <- result.try(methods.get_storage_at(
-    rpc_url,
+    provider,
     address,
     slot,
     block,

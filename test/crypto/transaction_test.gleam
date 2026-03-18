@@ -1,6 +1,7 @@
 import gleam/string
 import gleeth/crypto/transaction
 import gleeth/crypto/wallet
+import gleeth/provider
 import gleeth/rpc/client
 import gleeth/rpc/methods
 import gleeunit/should
@@ -580,14 +581,15 @@ pub fn anvil_legacy_broadcast_test() {
   case anvil_available() {
     False -> Nil
     True -> {
+      let assert Ok(p) = provider.new(anvil_url)
       let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
 
       // Query nonce from anvil
       let assert Ok(nonce) =
-        methods.get_transaction_count(anvil_url, test_address, "pending")
+        methods.get_transaction_count(p, test_address, "pending")
 
       // Query gas price from anvil
-      let assert Ok(gas_price) = methods.get_gas_price(anvil_url)
+      let assert Ok(gas_price) = methods.get_gas_price(p)
 
       // Build, sign, broadcast
       let assert Ok(tx) =
@@ -603,15 +605,14 @@ pub fn anvil_legacy_broadcast_test() {
       let assert Ok(signed) = transaction.sign_transaction(tx, w)
 
       let assert Ok(tx_hash) =
-        methods.send_raw_transaction(anvil_url, signed.raw_transaction)
+        methods.send_raw_transaction(p, signed.raw_transaction)
 
       // The returned hash should match what we compute locally
       let expected_hash = transaction.get_transaction_hash(signed)
       tx_hash |> should.equal(expected_hash)
 
       // Poll for receipt
-      let assert Ok(receipt) =
-        methods.get_transaction_receipt(anvil_url, tx_hash)
+      let assert Ok(receipt) = methods.get_transaction_receipt(p, tx_hash)
       receipt.transaction_hash
       |> string.lowercase
       |> should.equal(string.lowercase(tx_hash))
@@ -623,15 +624,16 @@ pub fn anvil_eip1559_broadcast_test() {
   case anvil_available() {
     False -> Nil
     True -> {
+      let assert Ok(p) = provider.new(anvil_url)
       let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
 
       // Query nonce
       let assert Ok(nonce) =
-        methods.get_transaction_count(anvil_url, test_address, "pending")
+        methods.get_transaction_count(p, test_address, "pending")
 
       // Query fee parameters
-      let assert Ok(gas_price) = methods.get_gas_price(anvil_url)
-      let assert Ok(priority_fee) = methods.get_max_priority_fee(anvil_url)
+      let assert Ok(gas_price) = methods.get_gas_price(p)
+      let assert Ok(priority_fee) = methods.get_max_priority_fee(p)
 
       // Build EIP-1559 transaction
       let assert Ok(tx) =
@@ -650,14 +652,13 @@ pub fn anvil_eip1559_broadcast_test() {
 
       // Broadcast
       let assert Ok(tx_hash) =
-        methods.send_raw_transaction(anvil_url, signed.raw_transaction)
+        methods.send_raw_transaction(p, signed.raw_transaction)
 
       let expected_hash = transaction.get_eip1559_transaction_hash(signed)
       tx_hash |> should.equal(expected_hash)
 
       // Poll for receipt and verify success
-      let assert Ok(receipt) =
-        methods.get_transaction_receipt(anvil_url, tx_hash)
+      let assert Ok(receipt) = methods.get_transaction_receipt(p, tx_hash)
       receipt.transaction_hash
       |> string.lowercase
       |> should.equal(string.lowercase(tx_hash))
@@ -669,8 +670,8 @@ pub fn anvil_fee_history_test() {
   case anvil_available() {
     False -> Nil
     True -> {
-      let assert Ok(fh) =
-        methods.get_fee_history(anvil_url, 4, "latest", [25.0, 75.0])
+      let assert Ok(p) = provider.new(anvil_url)
+      let assert Ok(fh) = methods.get_fee_history(p, 4, "latest", [25.0, 75.0])
 
       // Should return fee data for the requested blocks
       // oldest_block should be a hex string

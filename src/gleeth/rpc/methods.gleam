@@ -1,6 +1,7 @@
 import gleam/dynamic/decode
 import gleam/json
 import gleeth/ethereum/types as eth_types
+import gleeth/provider.{type Provider}
 import gleeth/rpc/response_utils
 import gleeth/rpc/types as rpc_types
 
@@ -10,23 +11,31 @@ import gleeth/rpc/types as rpc_types
 
 // Get the latest block number
 pub fn get_block_number(
-  rpc_url: String,
+  provider: Provider,
 ) -> Result(eth_types.BlockNumber, rpc_types.GleethError) {
-  response_utils.make_string_request(rpc_url, rpc_types.EthBlockNumber, [])
+  response_utils.make_string_request(
+    provider.rpc_url(provider),
+    rpc_types.EthBlockNumber,
+    [],
+  )
 }
 
 // Get balance of an address
 pub fn get_balance(
-  rpc_url: String,
+  provider: Provider,
   address: eth_types.Address,
 ) -> Result(eth_types.Wei, rpc_types.GleethError) {
   let params = [json.string(address), json.string("latest")]
-  response_utils.make_string_request(rpc_url, rpc_types.EthGetBalance, params)
+  response_utils.make_string_request(
+    provider.rpc_url(provider),
+    rpc_types.EthGetBalance,
+    params,
+  )
 }
 
 // Make a contract call
 pub fn call_contract(
-  rpc_url: String,
+  provider: Provider,
   contract_address: eth_types.Address,
   data: String,
 ) -> Result(String, rpc_types.GleethError) {
@@ -37,21 +46,29 @@ pub fn call_contract(
     ])
 
   let params = [call_object, json.string("latest")]
-  response_utils.make_string_request(rpc_url, rpc_types.EthCall, params)
+  response_utils.make_string_request(
+    provider.rpc_url(provider),
+    rpc_types.EthCall,
+    params,
+  )
 }
 
 // Get contract code (bytecode) at an address
 pub fn get_code(
-  rpc_url: String,
+  provider: Provider,
   address: eth_types.Address,
 ) -> Result(String, rpc_types.GleethError) {
   let params = [json.string(address), json.string("latest")]
-  response_utils.make_string_request(rpc_url, rpc_types.EthGetCode, params)
+  response_utils.make_string_request(
+    provider.rpc_url(provider),
+    rpc_types.EthGetCode,
+    params,
+  )
 }
 
 // Estimate gas needed for a transaction
 pub fn estimate_gas(
-  rpc_url: String,
+  provider: Provider,
   from: String,
   to: String,
   value: String,
@@ -66,14 +83,16 @@ pub fn estimate_gas(
     ])
 
   let transaction_object = json.object(transaction_params)
-  response_utils.make_string_request(rpc_url, rpc_types.EthEstimateGas, [
-    transaction_object,
-  ])
+  response_utils.make_string_request(
+    provider.rpc_url(provider),
+    rpc_types.EthEstimateGas,
+    [transaction_object],
+  )
 }
 
 // Get storage value at a specific slot in a contract
 pub fn get_storage_at(
-  rpc_url: String,
+  provider: Provider,
   address: eth_types.Address,
   slot: eth_types.StorageSlot,
   block: String,
@@ -89,12 +108,20 @@ pub fn get_storage_at(
     json.string(block_param),
   ]
 
-  response_utils.make_string_request(rpc_url, rpc_types.EthGetStorageAt, params)
+  response_utils.make_string_request(
+    provider.rpc_url(provider),
+    rpc_types.EthGetStorageAt,
+    params,
+  )
 }
 
 // Get the chain ID of the connected network.
-pub fn get_chain_id(rpc_url: String) -> Result(String, rpc_types.GleethError) {
-  response_utils.make_string_request(rpc_url, rpc_types.EthChainId, [])
+pub fn get_chain_id(provider: Provider) -> Result(String, rpc_types.GleethError) {
+  response_utils.make_string_request(
+    provider.rpc_url(provider),
+    rpc_types.EthChainId,
+    [],
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -105,12 +132,12 @@ pub fn get_chain_id(rpc_url: String) -> Result(String, rpc_types.GleethError) {
 // raw_tx should be the hex-encoded signed transaction (e.g. "0x02f873...").
 // Returns the transaction hash on success.
 pub fn send_raw_transaction(
-  rpc_url: String,
+  provider: Provider,
   raw_tx: String,
 ) -> Result(eth_types.Hash, rpc_types.GleethError) {
   let params = [json.string(raw_tx)]
   response_utils.make_string_request(
-    rpc_url,
+    provider.rpc_url(provider),
     rpc_types.EthSendRawTransaction,
     params,
   )
@@ -119,7 +146,7 @@ pub fn send_raw_transaction(
 // Get the transaction count (nonce) for an address.
 // The block parameter defaults to "pending" to get the next usable nonce.
 pub fn get_transaction_count(
-  rpc_url: String,
+  provider: Provider,
   address: eth_types.Address,
   block: String,
 ) -> Result(String, rpc_types.GleethError) {
@@ -129,7 +156,7 @@ pub fn get_transaction_count(
   }
   let params = [json.string(address), json.string(block_param)]
   response_utils.make_string_request(
-    rpc_url,
+    provider.rpc_url(provider),
     rpc_types.EthGetTransactionCount,
     params,
   )
@@ -137,17 +164,21 @@ pub fn get_transaction_count(
 
 // Get the current gas price in wei (for legacy transactions).
 pub fn get_gas_price(
-  rpc_url: String,
+  provider: Provider,
 ) -> Result(eth_types.Wei, rpc_types.GleethError) {
-  response_utils.make_string_request(rpc_url, rpc_types.EthGasPrice, [])
+  response_utils.make_string_request(
+    provider.rpc_url(provider),
+    rpc_types.EthGasPrice,
+    [],
+  )
 }
 
 // Get the current max priority fee per gas suggestion (for EIP-1559 transactions).
 pub fn get_max_priority_fee(
-  rpc_url: String,
+  provider: Provider,
 ) -> Result(eth_types.Wei, rpc_types.GleethError) {
   response_utils.make_string_request(
-    rpc_url,
+    provider.rpc_url(provider),
     rpc_types.EthMaxPriorityFeePerGas,
     [],
   )
@@ -158,7 +189,7 @@ pub fn get_max_priority_fee(
 // newest_block: highest block ("latest", "pending", or hex block number)
 // reward_percentiles: percentiles of effective priority fees to return (e.g. [25.0, 50.0, 75.0])
 pub fn get_fee_history(
-  rpc_url: String,
+  provider: Provider,
   block_count: Int,
   newest_block: String,
   reward_percentiles: List(Float),
@@ -173,7 +204,7 @@ pub fn get_fee_history(
     json.array(reward_percentiles, json.float),
   ]
   response_utils.make_decoded_request(
-    rpc_url,
+    provider.rpc_url(provider),
     rpc_types.EthFeeHistory,
     params,
     fee_history_decoder(),
@@ -186,12 +217,12 @@ pub fn get_fee_history(
 
 // Get transaction by hash
 pub fn get_transaction(
-  rpc_url: String,
+  provider: Provider,
   hash: String,
 ) -> Result(eth_types.Transaction, rpc_types.GleethError) {
   let params = [json.string(hash)]
   response_utils.make_decoded_request(
-    rpc_url,
+    provider.rpc_url(provider),
     rpc_types.EthGetTransactionByHash,
     params,
     transaction_decoder(),
@@ -200,12 +231,12 @@ pub fn get_transaction(
 
 // Get transaction receipt by hash
 pub fn get_transaction_receipt(
-  rpc_url: String,
+  provider: Provider,
   transaction_hash: String,
 ) -> Result(eth_types.TransactionReceipt, rpc_types.GleethError) {
   let params = [json.string(transaction_hash)]
   response_utils.make_decoded_request(
-    rpc_url,
+    provider.rpc_url(provider),
     rpc_types.EthGetTransactionReceipt,
     params,
     transaction_receipt_decoder(),
@@ -221,7 +252,7 @@ pub fn parse_transaction_receipt(
 
 // Get event logs based on filter criteria
 pub fn get_logs(
-  rpc_url: String,
+  provider: Provider,
   from_block: String,
   to_block: String,
   address: String,
@@ -246,7 +277,7 @@ pub fn get_logs(
 
   let filter_object = json.object(filter_params)
   response_utils.make_decoded_request(
-    rpc_url,
+    provider.rpc_url(provider),
     rpc_types.EthGetLogs,
     [filter_object],
     decode.list(log_decoder()),

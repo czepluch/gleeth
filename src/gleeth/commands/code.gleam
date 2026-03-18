@@ -2,15 +2,16 @@ import gleam/io
 import gleam/result
 import gleam/string
 import gleeth/ethereum/types as eth_types
+import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 
 // Execute code command - get bytecode at an address
 pub fn execute(
-  rpc_url: String,
+  provider: Provider,
   address: eth_types.Address,
 ) -> Result(Nil, rpc_types.GleethError) {
-  use code <- result.try(methods.get_code(rpc_url, address))
+  use code <- result.try(methods.get_code(provider, address))
   print_code(address, code)
   Ok(Nil)
 }

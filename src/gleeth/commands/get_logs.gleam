@@ -4,19 +4,20 @@ import gleam/list
 import gleam/result
 import gleam/string
 import gleeth/ethereum/types as eth_types
+import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 
 // Execute get-logs command
 pub fn execute(
-  rpc_url: String,
+  provider: Provider,
   from_block: String,
   to_block: String,
   address: String,
   topics: List(String),
 ) -> Result(Nil, rpc_types.GleethError) {
   use logs <- result.try(methods.get_logs(
-    rpc_url,
+    provider,
     from_block,
     to_block,
     address,

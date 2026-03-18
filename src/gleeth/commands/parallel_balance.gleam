@@ -8,6 +8,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import gleeth/ethereum/types.{type Address, type Wei}
+import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/file
@@ -32,7 +33,7 @@ pub type BalanceSummary {
 
 // Execute parallel balance checks for multiple addresses
 pub fn execute_parallel(
-  rpc_url: String,
+  provider: Provider,
   addresses: List(Address),
   file: Option(String),
 ) -> Result(Nil, rpc_types.GleethError) {
@@ -46,7 +47,7 @@ pub fn execute_parallel(
       )
       io.println("")
 
-      let results = check_balances_concurrently(rpc_url, addrs)
+      let results = check_balances_concurrently(provider, addrs)
       display_results(results)
       Ok(Nil)
     }
@@ -70,17 +71,17 @@ fn get_all_addresses(
 // Check balances concurrently, batched into groups of 10 to avoid
 // overwhelming the RPC node
 fn check_balances_concurrently(
-  rpc_url: String,
+  provider: Provider,
   addresses: List(Address),
 ) -> List(BalanceResult) {
   addresses
   |> list.sized_chunk(10)
-  |> list.flat_map(fn(batch) { check_batch_concurrently(rpc_url, batch) })
+  |> list.flat_map(fn(batch) { check_batch_concurrently(provider, batch) })
 }
 
 // Spawn a process for each address in the batch, collect all results
 fn check_batch_concurrently(
-  rpc_url: String,
+  provider: Provider,
   addresses: List(Address),
 ) -> List(BalanceResult) {
   let subject = process.new_subject()
@@ -89,7 +90,7 @@ fn check_batch_concurrently(
   // Spawn one process per address, each sends its result back on the subject
   list.each(addresses, fn(address) {
     process.spawn(fn() {
-      let result = check_single_balance(rpc_url, address)
+      let result = check_single_balance(provider, address)
       process.send(subject, result)
     })
   })
@@ -116,8 +117,8 @@ fn collect_results(
 }
 
 // Check balance for a single address
-fn check_single_balance(rpc_url: String, address: Address) -> BalanceResult {
-  case methods.get_balance(rpc_url, address) {
+fn check_single_balance(provider: Provider, address: Address) -> BalanceResult {
+  case methods.get_balance(provider, address) {
     Ok(balance_wei) -> {
       case hex.wei_to_ether(balance_wei) {
         Ok(ether_amount) -> BalanceSuccess(address, balance_wei, ether_amount)

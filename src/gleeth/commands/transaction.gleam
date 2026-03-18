@@ -5,17 +5,18 @@ import gleam/string
 
 import gleeth/ethereum/formatting
 import gleeth/ethereum/types as eth_types
+import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/hex
 
 // Execute transaction command
 pub fn execute(
-  rpc_url: String,
+  provider: Provider,
   transaction_hash: String,
 ) -> Result(Nil, rpc_types.GleethError) {
   use transaction <- result.try(methods.get_transaction(
-    rpc_url,
+    provider,
     transaction_hash,
   ))
   print_transaction(transaction)

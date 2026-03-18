@@ -9,6 +9,7 @@ import gleeth/ethereum/abi/decode as abi_decode
 import gleeth/ethereum/abi/json as abi_json
 import gleeth/ethereum/abi/types as abi_types
 import gleeth/ethereum/contract
+import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/hex
@@ -17,7 +18,7 @@ import simplifile
 
 // Execute a contract function call
 pub fn execute(
-  rpc_url: String,
+  provider: Provider,
   contract_address: String,
   function_call: String,
   parameters: List(String),
@@ -43,7 +44,7 @@ pub fn execute(
 
   // Make the contract call
   use response <- result.try(methods.call_contract(
-    rpc_url,
+    provider,
     validated_address,
     call_data,
   ))

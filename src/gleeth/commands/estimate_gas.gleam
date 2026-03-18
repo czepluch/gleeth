@@ -4,20 +4,21 @@ import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
+import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/hex
 
 // Execute estimate-gas command
 pub fn execute(
-  rpc_url: String,
+  provider: Provider,
   from: String,
   to: String,
   value: String,
   data: String,
 ) -> Result(Nil, rpc_types.GleethError) {
   use gas_estimate <- result.try(methods.estimate_gas(
-    rpc_url,
+    provider,
     from,
     to,
     value,

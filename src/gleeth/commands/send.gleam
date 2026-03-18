@@ -1,10 +1,12 @@
 import gleam/int
 import gleam/io
+import gleam/option.{None, Some}
 import gleam/result
 import gleeth/crypto/transaction
 import gleeth/crypto/wallet
 import gleeth/ethereum/formatting
 import gleeth/ethereum/types as eth_types
+import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/hex
@@ -21,7 +23,7 @@ pub type SendArgs {
 }
 
 pub fn execute(
-  rpc_url: String,
+  provider: Provider,
   args: SendArgs,
 ) -> Result(Nil, rpc_types.GleethError) {
   // Load wallet
@@ -35,18 +37,24 @@ pub fn execute(
   )
   let sender = wallet.get_address(w)
 
-  // Query chain ID
-  use chain_id_hex <- result.try(methods.get_chain_id(rpc_url))
-  use chain_id <- result.try(
-    hex.to_int(chain_id_hex)
-    |> result.map_error(fn(_) {
-      rpc_types.ParseError("Failed to parse chain ID: " <> chain_id_hex)
-    }),
-  )
+  // Resolve chain ID: use cached value from provider, or fetch via RPC
+  use #(provider, chain_id) <- result.try(case provider.chain_id(provider) {
+    Some(id) -> Ok(#(provider, id))
+    None -> {
+      use chain_id_hex <- result.try(methods.get_chain_id(provider))
+      use id <- result.try(
+        hex.to_int(chain_id_hex)
+        |> result.map_error(fn(_) {
+          rpc_types.ParseError("Failed to parse chain ID: " <> chain_id_hex)
+        }),
+      )
+      Ok(#(provider.with_chain_id(provider, id), id))
+    }
+  })
 
   // Query nonce
   use nonce <- result.try(methods.get_transaction_count(
-    rpc_url,
+    provider,
     sender,
     "pending",
   ))
@@ -64,20 +72,20 @@ pub fn execute(
   formatting.print_labeled_value("Chain ID", int.to_string(chain_id))
 
   case args.legacy {
-    True -> send_legacy(rpc_url, w, args, nonce, gas_limit, chain_id)
-    False -> send_eip1559(rpc_url, w, args, nonce, gas_limit, chain_id)
+    True -> send_legacy(provider, w, args, nonce, gas_limit, chain_id)
+    False -> send_eip1559(provider, w, args, nonce, gas_limit, chain_id)
   }
 }
 
 fn send_legacy(
-  rpc_url: String,
+  provider: Provider,
   w: wallet.Wallet,
   args: SendArgs,
   nonce: String,
   gas_limit: String,
   chain_id: Int,
 ) -> Result(Nil, rpc_types.GleethError) {
-  use gas_price <- result.try(methods.get_gas_price(rpc_url))
+  use gas_price <- result.try(methods.get_gas_price(provider))
   formatting.print_labeled_value("Gas Price", gas_price)
   formatting.print_labeled_value("Type", "Legacy (Type 0)")
   io.println("")
@@ -97,25 +105,25 @@ fn send_legacy(
   use signed <- result.try(transaction.sign_transaction(tx, w) |> map_tx_error)
 
   use tx_hash <- result.try(methods.send_raw_transaction(
-    rpc_url,
+    provider,
     signed.raw_transaction,
   ))
 
   io.println("Transaction sent!")
   formatting.print_labeled_value("Hash", tx_hash)
-  print_receipt(rpc_url, tx_hash)
+  print_receipt(provider, tx_hash)
 }
 
 fn send_eip1559(
-  rpc_url: String,
+  provider: Provider,
   w: wallet.Wallet,
   args: SendArgs,
   nonce: String,
   gas_limit: String,
   chain_id: Int,
 ) -> Result(Nil, rpc_types.GleethError) {
-  use max_fee <- result.try(methods.get_gas_price(rpc_url))
-  use priority_fee <- result.try(methods.get_max_priority_fee(rpc_url))
+  use max_fee <- result.try(methods.get_gas_price(provider))
+  use priority_fee <- result.try(methods.get_max_priority_fee(provider))
   formatting.print_labeled_value("Max Fee", max_fee)
   formatting.print_labeled_value("Priority Fee", priority_fee)
   formatting.print_labeled_value("Type", "EIP-1559 (Type 2)")
@@ -140,20 +148,20 @@ fn send_eip1559(
   )
 
   use tx_hash <- result.try(methods.send_raw_transaction(
-    rpc_url,
+    provider,
     signed.raw_transaction,
   ))
 
   io.println("Transaction sent!")
   formatting.print_labeled_value("Hash", tx_hash)
-  print_receipt(rpc_url, tx_hash)
+  print_receipt(provider, tx_hash)
 }
 
 fn print_receipt(
-  rpc_url: String,
+  provider: Provider,
   tx_hash: eth_types.Hash,
 ) -> Result(Nil, rpc_types.GleethError) {
-  case methods.get_transaction_receipt(rpc_url, tx_hash) {
+  case methods.get_transaction_receipt(provider, tx_hash) {
     Ok(receipt) -> {
       io.println("")
       io.println("Receipt:")
