@@ -35,6 +35,11 @@ pub fn main() {
 
 ### Sign and send a transaction
 
+All numeric values (wei amounts, gas, nonce) use `0x`-prefixed hex strings,
+matching the Ethereum JSON-RPC format. Values returned by `methods.get_gas_price`,
+`methods.get_transaction_count`, etc. can be passed directly to transaction
+builders.
+
 ```gleam
 import gleeth/crypto/transaction
 import gleeth/crypto/wallet
@@ -46,17 +51,19 @@ pub fn main() {
   let assert Ok(w) = wallet.from_private_key_hex("0xac09...")
 
   let sender = wallet.get_address(w)
+
+  // These return hex strings that can be passed directly to create_legacy_transaction
   let assert Ok(nonce) = methods.get_transaction_count(p, sender, "pending")
   let assert Ok(gas_price) = methods.get_gas_price(p)
 
   let assert Ok(tx) = transaction.create_legacy_transaction(
     "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    "0xde0b6b3a7640000",  // 1 ETH
-    "0x5208",              // 21000 gas
-    gas_price,
-    nonce,
-    "0x",
-    1,  // mainnet chain ID
+    "0xde0b6b3a7640000",  // 1 ETH = 1e18 wei in hex
+    "0x5208",              // 21000 gas in hex
+    gas_price,             // from RPC, already hex
+    nonce,                 // from RPC, already hex
+    "0x",                  // no calldata
+    1,                     // mainnet chain ID (integer, not hex)
   )
 
   let assert Ok(signed) = transaction.sign_transaction(tx, w)

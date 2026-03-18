@@ -133,10 +133,40 @@ Gleeth should be a library for Gleam projects to interact with Ethereum. The CLI
 - **Option B: Keep as one package** - simpler to maintain, fewer repos. The CLI entrypoint is just one file and the commands are thin wrappers around library functions.
 - **Current status**: the CLI is useful for manual testing and verification (e.g. `gleeth send` against anvil). No need to split immediately, but should decide before publishing to Hex.
 
-## Phase 7: Advanced features (future)
+## Phase 7: Ergonomics and developer experience (future)
+
+### 7.1 Value conversion helpers
+
+Currently all numeric values (wei, gas, nonce) are `0x`-prefixed hex strings
+matching the JSON-RPC wire format. This is efficient internally but confusing
+for users who think in ETH or decimal. Add a `wei` module:
+
+- `wei.from_ether("1.5")` -> `"0x14d1120d7b160000"`
+- `wei.from_gwei(20)` -> `"0x4a817c800"`
+- `wei.to_ether("0xde0b6b3a7640000")` -> `"1.0"`
+- `wei.to_gwei("0x3b9aca00")` -> `"1.0"`
+- Decimal string to/from hex: `hex.from_int(21000)` -> `"0x5208"`
+
+### 7.2 EIP-55 checksummed addresses
+
+Validate and produce mixed-case checksummed addresses. Trivial to implement
+since keccak256 is already available. ~30 lines.
+
+### 7.3 Type-safe transaction builders
+
+Consider a builder pattern that accepts human-readable values:
+
+```
+transaction.build()
+|> transaction.to("0x...")
+|> transaction.value_ether("1.5")
+|> transaction.gas_limit(21000)
+|> transaction.sign(wallet)
+```
+
+## Phase 8: Advanced features (future)
 
 - ENS name resolution
-- EIP-55 checksummed addresses
 - HD wallets / BIP39 mnemonics
 - Multi-chain configuration (chain registry)
 - Contract deployment

@@ -116,7 +116,34 @@ pub type TransactionError {
 // Transaction Building
 // =============================================================================
 
-/// Create a new unsigned legacy transaction
+/// Create a new unsigned legacy (Type 0) transaction.
+///
+/// All numeric parameters must be `0x`-prefixed hex strings. The Ethereum
+/// JSON-RPC API returns values in this format, so results from
+/// `methods.get_gas_price`, `methods.get_transaction_count`, etc. can be
+/// passed directly.
+///
+/// - `to` - recipient address (`"0x..."`, 40 hex chars after prefix)
+/// - `value` - amount in wei as hex (e.g. `"0xde0b6b3a7640000"` for 1 ETH)
+/// - `gas_limit` - gas limit as hex (e.g. `"0x5208"` for 21000)
+/// - `gas_price` - gas price in wei as hex
+/// - `nonce` - sender's transaction count as hex
+/// - `data` - calldata as hex (`"0x"` for simple transfers)
+/// - `chain_id` - network chain ID as integer (1 for mainnet, 11155111 for Sepolia)
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(tx) = transaction.create_legacy_transaction(
+///   "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+///   "0xde0b6b3a7640000",  // 1 ETH in wei
+///   "0x5208",              // 21000 gas
+///   "0x3b9aca00",          // 1 gwei gas price
+///   "0x0",                 // nonce 0
+///   "0x",                  // no calldata
+///   1,                     // mainnet
+/// )
+/// ```
 pub fn create_legacy_transaction(
   to: String,
   value: String,
@@ -146,7 +173,10 @@ pub fn create_legacy_transaction(
   ))
 }
 
-/// Create a simple ETH transfer transaction
+/// Create a simple ETH transfer transaction (no calldata).
+///
+/// Convenience wrapper around `create_legacy_transaction` with `data` set to
+/// `"0x"`. All numeric parameters are `0x`-prefixed hex strings.
 pub fn create_eth_transfer(
   to: String,
   value_wei: String,
@@ -166,7 +196,10 @@ pub fn create_eth_transfer(
   )
 }
 
-/// Create a contract interaction transaction
+/// Create a contract interaction transaction (zero value).
+///
+/// Convenience wrapper around `create_legacy_transaction` with `value` set to
+/// `"0x0"`. All numeric parameters are `0x`-prefixed hex strings.
 pub fn create_contract_call(
   contract_address: String,
   call_data: String,
@@ -187,7 +220,21 @@ pub fn create_contract_call(
   )
 }
 
-/// Create and validate an EIP-1559 (Type 2) transaction
+/// Create and validate an EIP-1559 (Type 2) transaction.
+///
+/// All numeric parameters must be `0x`-prefixed hex strings. Fee parameters
+/// from `methods.get_gas_price` and `methods.get_max_priority_fee` can be
+/// passed directly.
+///
+/// - `to` - recipient address
+/// - `value` - amount in wei as hex
+/// - `gas_limit` - gas limit as hex
+/// - `max_fee_per_gas` - maximum total fee per gas in wei as hex
+/// - `max_priority_fee_per_gas` - tip per gas in wei as hex
+/// - `nonce` - sender's transaction count as hex
+/// - `data` - calldata as hex (`"0x"` for simple transfers)
+/// - `chain_id` - network chain ID as integer
+/// - `access_list` - EIP-2930 access list (pass `[]` if not needed)
 pub fn create_eip1559_transaction(
   to: String,
   value: String,
