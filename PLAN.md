@@ -95,11 +95,22 @@ Full ABI encoder/decoder implemented in `ethereum/abi/` with 108 tests covering 
 
 ## Phase 5: Provider abstraction
 
-### 5.1 Provider type
+### 5.1 Provider type - DONE
 
-- Replace raw `rpc_url: String` threading with a `Provider` type
-- Provider holds: URL, chain ID, middleware configuration
+- Opaque `Provider` type in `provider.gleam` replaces raw `rpc_url: String` threading
+- Provider holds: validated URL, optional chain_id (populated lazily)
 - All RPC methods take `Provider` instead of string
+- Boundary at `methods.gleam` - layers below (`response_utils`, `client`) unchanged
+- `config.gleam` deleted (absorbed into `provider.gleam`)
+- Convenience constructors: `mainnet()`, `sepolia()`
+- `send` command uses `provider.chain_id()` caching for library use
+
+### 5.1.1 Error type consolidation - DONE
+
+- `GleethError` now wraps domain error types: `WalletErr(WalletError)`, `TransactionErr(TransactionError)`, `AbiErr(AbiError)`
+- Library consumers handle one `Result` type in mixed wallet+RPC+tx pipelines
+- Domain error types (`WalletError`, `TransactionError`, `AbiError`) unchanged - kept where they belong
+- Bridge points (`send.gleam`, `contract.gleam`) use proper wrappers instead of string-flattening
 
 ### 5.2 Middleware
 

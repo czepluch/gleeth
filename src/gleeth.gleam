@@ -8,8 +8,11 @@ import gleeth/commands/estimate_gas
 import gleeth/commands/get_logs
 import gleeth/commands/send
 import gleeth/commands/storage_at
-import gleeth/commands/transaction
+import gleeth/commands/transaction as transaction_cmd
 import gleeth/commands/wallet
+import gleeth/crypto/transaction
+import gleeth/crypto/wallet as crypto_wallet
+import gleeth/ethereum/abi/types as abi_types
 import gleeth/ethereum/formatting
 import gleeth/provider
 import gleeth/rpc/types as rpc_types
@@ -58,7 +61,7 @@ fn execute_command(command: cli.Command, p: provider.Provider) -> Nil {
     cli.Balance(addresses, file) -> balance.execute(p, addresses, file)
     cli.Call(contract, function, parameters, abi_file) ->
       call.execute(p, contract, function, parameters, abi_file)
-    cli.Transaction(hash) -> transaction.execute(p, hash)
+    cli.Transaction(hash) -> transaction_cmd.execute(p, hash)
     cli.Code(address) -> code.execute(p, address)
     cli.EstimateGas(from, to, value, data) ->
       estimate_gas.execute(p, from, to, value, data)
@@ -102,6 +105,24 @@ fn print_error(error: rpc_types.GleethError) -> Nil {
     rpc_types.ParseError(msg) -> formatting.print_error("Parse error: " <> msg)
     rpc_types.ConfigError(msg) ->
       formatting.print_error("Configuration error: " <> msg)
-    rpc_types.AbiError(msg) -> formatting.print_error("ABI error: " <> msg)
+    rpc_types.AbiErr(err) ->
+      formatting.print_error("ABI error: " <> abi_error_message(err))
+    rpc_types.WalletErr(err) ->
+      formatting.print_error(
+        "Wallet error: " <> crypto_wallet.error_to_string(err),
+      )
+    rpc_types.TransactionErr(err) ->
+      formatting.print_error(
+        "Transaction error: " <> transaction.error_to_string(err),
+      )
+  }
+}
+
+fn abi_error_message(err: abi_types.AbiError) -> String {
+  case err {
+    abi_types.EncodeError(msg) -> msg
+    abi_types.DecodeError(msg) -> msg
+    abi_types.TypeParseError(msg) -> msg
+    abi_types.InvalidAbiJson(msg) -> msg
   }
 }

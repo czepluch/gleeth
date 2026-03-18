@@ -29,11 +29,7 @@ pub fn execute(
   // Load wallet
   use w <- result.try(
     wallet.from_private_key_hex(args.private_key)
-    |> result.map_error(fn(err) {
-      rpc_types.ConfigError(
-        "Invalid private key: " <> wallet.error_to_string(err),
-      )
-    }),
+    |> result.map_error(rpc_types.WalletErr),
   )
   let sender = wallet.get_address(w)
 
@@ -186,7 +182,5 @@ fn print_receipt(
 fn map_tx_error(
   res: Result(a, transaction.TransactionError),
 ) -> Result(a, rpc_types.GleethError) {
-  result.map_error(res, fn(err) {
-    rpc_types.ConfigError(transaction.error_to_string(err))
-  })
+  result.map_error(res, rpc_types.TransactionErr)
 }

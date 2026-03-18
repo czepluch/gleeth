@@ -222,10 +222,5 @@ fn parse_param_type(
 }
 
 fn abi_error_to_gleeth_error(err: abi_types.AbiError) -> rpc_types.GleethError {
-  case err {
-    abi_types.EncodeError(msg) -> rpc_types.AbiError(msg)
-    abi_types.DecodeError(msg) -> rpc_types.AbiError(msg)
-    abi_types.TypeParseError(msg) -> rpc_types.AbiError(msg)
-    abi_types.InvalidAbiJson(msg) -> rpc_types.AbiError(msg)
-  }
+  rpc_types.AbiErr(err)
 }

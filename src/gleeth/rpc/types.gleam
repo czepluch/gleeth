@@ -1,4 +1,7 @@
 import gleam/json
+import gleeth/crypto/transaction
+import gleeth/crypto/wallet
+import gleeth/ethereum/abi/types as abi_types
 
 // JSON-RPC request structure
 pub type JsonRpcRequest {
@@ -75,5 +78,7 @@ pub type GleethError {
   NetworkError(String)
   ParseError(String)
   ConfigError(String)
-  AbiError(String)
+  AbiErr(abi_types.AbiError)
+  WalletErr(wallet.WalletError)
+  TransactionErr(transaction.TransactionError)
 }
