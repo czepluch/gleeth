@@ -1,9 +1,12 @@
+//// Core types for gleeth's JSON-RPC layer - request/response structures,
+//// Ethereum method definitions, and the unified application error type.
+
 import gleam/json
 import gleeth/crypto/transaction
 import gleeth/crypto/wallet
 import gleeth/ethereum/abi/types as abi_types
 
-// JSON-RPC request structure
+/// A JSON-RPC 2.0 request to be sent to an Ethereum node.
 pub type JsonRpcRequest {
   JsonRpcRequest(
     jsonrpc: String,
@@ -13,7 +16,7 @@ pub type JsonRpcRequest {
   )
 }
 
-// JSON-RPC response structure
+/// A JSON-RPC 2.0 response received from an Ethereum node.
 pub type JsonRpcResponse {
   JsonRpcResponse(
     jsonrpc: String,
@@ -22,12 +25,12 @@ pub type JsonRpcResponse {
   )
 }
 
-// JSON-RPC error structure
+/// The error object returned inside a JSON-RPC error response.
 pub type JsonRpcError {
   JsonRpcError(code: Int, message: String, data: json.Json)
 }
 
-// Ethereum RPC method names
+/// Supported Ethereum JSON-RPC method names.
 pub type EthMethod {
   EthBlockNumber
   EthGetBalance
@@ -47,7 +50,7 @@ pub type EthMethod {
   EthFeeHistory
 }
 
-// Convert method to string
+/// Convert an EthMethod variant to its JSON-RPC method name string.
 pub fn method_to_string(method: EthMethod) -> String {
   case method {
     EthBlockNumber -> "eth_blockNumber"
@@ -69,16 +72,28 @@ pub fn method_to_string(method: EthMethod) -> String {
   }
 }
 
-// Application errors
+/// Unified error type for all gleeth operations. Commands return
+/// `Result(Nil, GleethError)`, making this the single error channel
+/// across the entire application.
 pub type GleethError {
+  /// The provided RPC URL is malformed or empty.
   InvalidRpcUrl(String)
+  /// The provided Ethereum address fails validation (bad length, missing 0x prefix, etc.).
   InvalidAddress(String)
+  /// The provided transaction or block hash fails validation.
   InvalidHash(String)
+  /// The Ethereum node returned a JSON-RPC error response.
   RpcError(String)
+  /// A network-level failure occurred (connection refused, timeout, DNS failure).
   NetworkError(String)
+  /// Failed to parse a JSON-RPC response or decode a hex value.
   ParseError(String)
+  /// Invalid or missing CLI configuration (missing RPC URL, bad flags).
   ConfigError(String)
+  /// Wraps an ABI encoding/decoding error, preserving the original AbiError.
   AbiErr(abi_types.AbiError)
+  /// Wraps a wallet operation error, preserving the original WalletError.
   WalletErr(wallet.WalletError)
+  /// Wraps a transaction signing/building error, preserving the original TransactionError.
   TransactionErr(transaction.TransactionError)
 }

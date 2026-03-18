@@ -1,3 +1,10 @@
+//// Ethereum JSON-RPC method wrappers.
+////
+//// Each public function in this module corresponds to a standard Ethereum
+//// JSON-RPC method (e.g. `eth_blockNumber`, `eth_getBalance`). Functions
+//// accept a `Provider` as their first argument and return a typed `Result`
+//// with `GleethError` on failure.
+
 import gleam/dynamic/decode
 import gleam/json
 import gleeth/ethereum/types as eth_types
@@ -5,11 +12,16 @@ import gleeth/provider.{type Provider}
 import gleeth/rpc/response_utils
 import gleeth/rpc/types as rpc_types
 
-// ---------------------------------------------------------------------------
-// Simple RPC methods (return a single string)
-// ---------------------------------------------------------------------------
-
-// Get the latest block number
+/// Get the latest block number by calling `eth_blockNumber`.
+///
+/// Returns the block number as a hex-encoded string.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(p) = provider.new("http://localhost:8545")
+/// let assert Ok(block) = get_block_number(p)
+/// ```
 pub fn get_block_number(
   provider: Provider,
 ) -> Result(eth_types.BlockNumber, rpc_types.GleethError) {
@@ -20,7 +32,17 @@ pub fn get_block_number(
   )
 }
 
-// Get balance of an address
+/// Get the balance of an address by calling `eth_getBalance`.
+///
+/// Queries at the `"latest"` block. Returns the balance in wei as a
+/// hex-encoded string.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(p) = provider.new("http://localhost:8545")
+/// let assert Ok(balance) = get_balance(p, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+/// ```
 pub fn get_balance(
   provider: Provider,
   address: eth_types.Address,
@@ -33,7 +55,19 @@ pub fn get_balance(
   )
 }
 
-// Make a contract call
+/// Execute a read-only contract call by calling `eth_call`.
+///
+/// Sends a call object with the given contract address and ABI-encoded
+/// calldata, evaluated at the `"latest"` block. Returns the hex-encoded
+/// return data.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(p) = provider.new("http://localhost:8545")
+/// let calldata = "0x70a08231000000000000000000000000d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+/// let assert Ok(result) = call_contract(p, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", calldata)
+/// ```
 pub fn call_contract(
   provider: Provider,
   contract_address: eth_types.Address,
@@ -53,7 +87,9 @@ pub fn call_contract(
   )
 }
 
-// Get contract code (bytecode) at an address
+/// Get the deployed bytecode at an address by calling `eth_getCode`.
+///
+/// Returns `"0x"` for externally-owned accounts (EOAs).
 pub fn get_code(
   provider: Provider,
   address: eth_types.Address,
@@ -66,7 +102,9 @@ pub fn get_code(
   )
 }
 
-// Estimate gas needed for a transaction
+/// Estimate the gas required for a transaction by calling `eth_estimateGas`.
+///
+/// Any parameter may be an empty string to omit it from the call object.
 pub fn estimate_gas(
   provider: Provider,
   from: String,
@@ -90,7 +128,10 @@ pub fn estimate_gas(
   )
 }
 
-// Get storage value at a specific slot in a contract
+/// Get the storage value at a specific slot in a contract by calling
+/// `eth_getStorageAt`.
+///
+/// If `block` is an empty string it defaults to `"latest"`.
 pub fn get_storage_at(
   provider: Provider,
   address: eth_types.Address,
@@ -115,7 +156,16 @@ pub fn get_storage_at(
   )
 }
 
-// Get the chain ID of the connected network.
+/// Get the chain ID of the connected network by calling `eth_chainId`.
+///
+/// Returns the chain ID as a hex-encoded string (e.g. `"0x1"` for mainnet).
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(p) = provider.new("http://localhost:8545")
+/// let assert Ok(chain_id) = get_chain_id(p)
+/// ```
 pub fn get_chain_id(provider: Provider) -> Result(String, rpc_types.GleethError) {
   response_utils.make_string_request(
     provider.rpc_url(provider),
@@ -124,13 +174,18 @@ pub fn get_chain_id(provider: Provider) -> Result(String, rpc_types.GleethError)
   )
 }
 
-// ---------------------------------------------------------------------------
-// Transaction broadcasting
-// ---------------------------------------------------------------------------
-
-// Broadcast a signed raw transaction to the network.
-// raw_tx should be the hex-encoded signed transaction (e.g. "0x02f873...").
-// Returns the transaction hash on success.
+/// Broadcast a signed raw transaction to the network by calling
+/// `eth_sendRawTransaction`.
+///
+/// `raw_tx` should be the hex-encoded signed transaction (e.g. `"0x02f873..."`).
+/// Returns the transaction hash on success.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(p) = provider.new("http://localhost:8545")
+/// let assert Ok(tx_hash) = send_raw_transaction(p, "0x02f873...")
+/// ```
 pub fn send_raw_transaction(
   provider: Provider,
   raw_tx: String,
@@ -143,8 +198,11 @@ pub fn send_raw_transaction(
   )
 }
 
-// Get the transaction count (nonce) for an address.
-// The block parameter defaults to "pending" to get the next usable nonce.
+/// Get the transaction count (nonce) for an address by calling
+/// `eth_getTransactionCount`.
+///
+/// If `block` is an empty string it defaults to `"pending"`, which gives the
+/// next usable nonce.
 pub fn get_transaction_count(
   provider: Provider,
   address: eth_types.Address,
@@ -162,7 +220,9 @@ pub fn get_transaction_count(
   )
 }
 
-// Get the current gas price in wei (for legacy transactions).
+/// Get the current gas price in wei by calling `eth_gasPrice`.
+///
+/// Primarily useful for legacy (pre-EIP-1559) transactions.
 pub fn get_gas_price(
   provider: Provider,
 ) -> Result(eth_types.Wei, rpc_types.GleethError) {
@@ -173,7 +233,10 @@ pub fn get_gas_price(
   )
 }
 
-// Get the current max priority fee per gas suggestion (for EIP-1559 transactions).
+/// Get the suggested max priority fee per gas by calling
+/// `eth_maxPriorityFeePerGas`.
+///
+/// Used when building EIP-1559 (Type 2) transactions.
 pub fn get_max_priority_fee(
   provider: Provider,
 ) -> Result(eth_types.Wei, rpc_types.GleethError) {
@@ -184,10 +247,13 @@ pub fn get_max_priority_fee(
   )
 }
 
-// Get fee history for recent blocks.
-// block_count: number of blocks to return (as decimal integer)
-// newest_block: highest block ("latest", "pending", or hex block number)
-// reward_percentiles: percentiles of effective priority fees to return (e.g. [25.0, 50.0, 75.0])
+/// Get fee history for recent blocks by calling `eth_feeHistory`.
+///
+/// - `block_count` - number of blocks to return (as a decimal integer)
+/// - `newest_block` - highest block (`"latest"`, `"pending"`, or a hex block
+///   number); defaults to `"latest"` when empty
+/// - `reward_percentiles` - percentiles of effective priority fees to include
+///   (e.g. `[25.0, 50.0, 75.0]`)
 pub fn get_fee_history(
   provider: Provider,
   block_count: Int,
@@ -211,11 +277,16 @@ pub fn get_fee_history(
   )
 }
 
-// ---------------------------------------------------------------------------
-// Complex RPC methods (return structured data)
-// ---------------------------------------------------------------------------
-
-// Get transaction by hash
+/// Get a transaction by its hash by calling `eth_getTransactionByHash`.
+///
+/// Returns a fully decoded `Transaction` record.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(p) = provider.new("http://localhost:8545")
+/// let assert Ok(tx) = get_transaction(p, "0xabc123...")
+/// ```
 pub fn get_transaction(
   provider: Provider,
   hash: String,
@@ -229,7 +300,11 @@ pub fn get_transaction(
   )
 }
 
-// Get transaction receipt by hash
+/// Get a transaction receipt by its hash by calling
+/// `eth_getTransactionReceipt`.
+///
+/// Returns a fully decoded `TransactionReceipt` record including logs and
+/// status.
 pub fn get_transaction_receipt(
   provider: Provider,
   transaction_hash: String,
@@ -243,14 +318,20 @@ pub fn get_transaction_receipt(
   )
 }
 
-// Parse a transaction receipt from a JSON value (for testing)
+/// Parse a transaction receipt from a raw JSON-RPC response body.
+///
+/// This is primarily intended for testing - it decodes the JSON string
+/// directly rather than making an RPC call.
 pub fn parse_transaction_receipt(
   body: String,
 ) -> Result(eth_types.TransactionReceipt, rpc_types.GleethError) {
   response_utils.decode_rpc_response(body, transaction_receipt_decoder())
 }
 
-// Get event logs based on filter criteria
+/// Get event logs matching a filter by calling `eth_getLogs`.
+///
+/// `from_block` and `to_block` default to `"latest"` when empty. `address`
+/// and `topics` are omitted from the filter when empty.
 pub fn get_logs(
   provider: Provider,
   from_block: String,
@@ -283,10 +364,6 @@ pub fn get_logs(
     decode.list(log_decoder()),
   )
 }
-
-// ---------------------------------------------------------------------------
-// Decoders
-// ---------------------------------------------------------------------------
 
 // Decode a string field, treating null as empty string
 fn nullable_string() -> decode.Decoder(String) {
@@ -439,10 +516,6 @@ fn status_decoder() -> decode.Decoder(eth_types.TransactionStatus) {
     _ -> decode.failure(eth_types.Failed, "TransactionStatus")
   }
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 // Build a list of JSON key-value pairs, skipping empty string values
 fn build_optional_params(

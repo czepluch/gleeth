@@ -1,118 +1,127 @@
-// Core Ethereum data types
+//// Ethereum domain types used throughout gleeth.
+////
+//// Most types are hex-encoded string aliases (addresses, hashes, wei values)
+//// matching how the JSON-RPC API represents them. Structured types like
+//// `Transaction`, `TransactionReceipt`, and `Log` are decoded from RPC
+//// responses by the `methods` module.
+
+/// A hex-encoded Ethereum address, e.g. `"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"`.
 pub type Address =
   String
 
+/// A hex-encoded 32-byte hash (transaction hash or block hash).
 pub type Hash =
   String
 
+/// A hex-encoded block number, e.g. `"0x10d4f1"`.
 pub type BlockNumber =
   String
 
+/// A hex-encoded wei amount, e.g. `"0xde0b6b3a7640000"` for 1 ETH.
 pub type Wei =
   String
 
+/// A hex-encoded gas amount.
 pub type Gas =
   String
 
+/// A hex-encoded 32-byte storage value returned by `eth_getStorageAt`.
 pub type StorageValue =
   String
 
+/// A hex-encoded storage slot position, e.g. `"0x0"` for slot 0.
 pub type StorageSlot =
   String
 
-// Transaction parameters for gas estimation
+/// Parameters for `eth_estimateGas`. Empty strings are omitted from the
+/// request.
 pub type GasEstimateTransaction {
-  GasEstimateTransaction(
-    from: Address,
-    // Optional: sender address
-    to: Address,
-    // Recipient address (contract or EOA)
-    value: Wei,
-    // Optional: wei value to send
-    data: String,
-    // Optional: contract call data
-  )
+  GasEstimateTransaction(from: Address, to: Address, value: Wei, data: String)
 }
 
-// Transaction status for post-Byzantium transactions
+/// Status of a mined transaction (post-Byzantium).
 pub type TransactionStatus {
+  /// The transaction executed successfully (`status: 0x1`).
   Success
-  // status: 1
+  /// The transaction reverted (`status: 0x0`).
   Failed
-  // status: 0
 }
 
-// Event log from smart contract
+/// An event log emitted by a smart contract.
+///
+/// Returned by `methods.get_logs` and included in `TransactionReceipt`.
 pub type Log {
   Log(
+    /// Contract address that emitted the log.
     address: Address,
-    // Contract that emitted the log
+    /// Indexed event parameters (up to 4 topics).
     topics: List(String),
-    // Indexed event parameters
+    /// Non-indexed event data (ABI-encoded).
     data: String,
-    // Non-indexed event data
+    /// Block number where the log occurred.
     block_number: BlockNumber,
-    // Block number where log occurred
+    /// Transaction that produced this log.
     transaction_hash: Hash,
-    // Transaction that created this log
+    /// Index of the transaction within the block.
     transaction_index: String,
-    // Transaction index in block
+    /// Hash of the block containing this log.
     block_hash: Hash,
-    // Block hash
+    /// Index of this log within the block.
     log_index: String,
-    // Log index in block
+    /// `True` if this log was removed due to a chain reorganization.
     removed: Bool,
-    // True if log was removed due to chain reorganization
   )
 }
 
-// Filter parameters for getting logs
+/// Filter parameters for `eth_getLogs`.
 pub type LogFilter {
   LogFilter(
+    /// Starting block (hex or tag like `"latest"`). Empty string defaults to `"latest"`.
     from_block: String,
-    // Starting block number (optional, defaults to "latest")
+    /// Ending block. Empty string defaults to `"latest"`.
     to_block: String,
-    // Ending block number (optional, defaults to "latest")  
+    /// Contract address to filter. Empty string means all contracts.
     address: String,
-    // Contract address to filter (optional, empty for all)
+    /// Topic filters. Empty list means all topics.
     topics: List(String),
-    // Topic filters (optional, empty list for all)
   )
 }
 
-// Transaction receipt - returned after transaction is mined
+/// A transaction receipt returned after a transaction is mined.
+///
+/// Returned by `methods.get_transaction_receipt`.
 pub type TransactionReceipt {
   TransactionReceipt(
+    /// Hash of the transaction.
     transaction_hash: Hash,
-    // Hash of the transaction
+    /// Index of the transaction within the block.
     transaction_index: String,
-    // Transaction index in the block
+    /// Hash of the block containing this transaction.
     block_hash: Hash,
-    // Hash of block containing transaction
+    /// Number of the block containing this transaction.
     block_number: BlockNumber,
-    // Number of block containing transaction
+    /// Sender address.
     from: Address,
-    // Sender address
+    /// Receiver address. Empty string for contract creation.
     to: Address,
-    // Receiver address (empty string for contract creation)
+    /// Total gas used in the block up to and including this transaction.
     cumulative_gas_used: String,
-    // Total gas used when this tx was executed in the block
+    /// Gas consumed by this specific transaction.
     gas_used: String,
-    // Gas used by this specific transaction
+    /// Address of the created contract. Empty string if not a deployment.
     contract_address: Address,
-    // Created contract address (empty string if not contract creation)
+    /// Event logs emitted by this transaction.
     logs: List(Log),
-    // Array of log objects generated by this transaction
+    /// Bloom filter for quick log retrieval by light clients.
     logs_bloom: String,
-    // Bloom filter for light clients to quickly retrieve related logs
+    /// Whether the transaction succeeded or reverted.
     status: TransactionStatus,
-    // Success or failure status
+    /// Actual gas price paid per unit (relevant for EIP-1559).
     effective_gas_price: String,
-    // Actual value per gas deducted from sender (EIP-1559)
   )
 }
 
-// Block information
+/// Block header information.
 pub type Block {
   Block(
     number: BlockNumber,
@@ -125,63 +134,70 @@ pub type Block {
   )
 }
 
-// Transaction information
+/// Full transaction object as returned by `methods.get_transaction`.
+///
+/// Fields that are `""` (empty string) indicate null/absent values in the
+/// JSON-RPC response - e.g. `block_number` is empty for pending transactions,
+/// `to` is empty for contract creation.
 pub type Transaction {
   Transaction(
+    /// Transaction hash.
     hash: Hash,
-    // Transaction hash
+    /// Block number. Empty for pending transactions.
     block_number: String,
-    // Block number (null for pending)
+    /// Block hash. Empty for pending transactions.
     block_hash: String,
-    // Block hash (null for pending)
+    /// Index within the block. Empty for pending transactions.
     transaction_index: String,
-    // Transaction index in block (null for pending)
+    /// Sender address.
     from: Address,
-    // Sender address
+    /// Recipient address. Empty for contract creation.
     to: String,
-    // Recipient address (null for contract creation)
+    /// Value transferred in wei.
     value: Wei,
-    // Value transferred in wei
+    /// Gas limit.
     gas: String,
-    // Gas limit
+    /// Gas price in wei (legacy transactions). Empty for EIP-1559.
     gas_price: String,
-    // Gas price in wei (legacy transactions)
+    /// Max fee per gas (EIP-1559). Empty for legacy transactions.
     max_fee_per_gas: String,
-    // Max fee per gas (EIP-1559 transactions)
+    /// Max priority fee per gas (EIP-1559). Empty for legacy transactions.
     max_priority_fee_per_gas: String,
-    // Max priority fee per gas (EIP-1559 transactions)
+    /// Input data (calldata).
     input: String,
-    // Transaction input data
+    /// Sender's nonce.
     nonce: String,
-    // Transaction nonce
+    /// Transaction type: `"0x0"` legacy, `"0x1"` EIP-2930, `"0x2"` EIP-1559.
     transaction_type: String,
-    // Transaction type (0x0, 0x1, 0x2, etc.)
+    /// Chain ID.
     chain_id: String,
-    // Chain ID
+    /// ECDSA recovery id.
     v: String,
-    // ECDSA recovery id
+    /// ECDSA signature r component.
     r: String,
-    // ECDSA signature r
+    /// ECDSA signature s component.
     s: String,
-    // ECDSA signature s
   )
 }
 
-// Balance information
+/// An address paired with its balance.
 pub type Balance {
   Balance(address: Address, value: Wei)
 }
 
-// Fee history for EIP-1559 gas estimation
+/// Fee history data returned by `methods.get_fee_history` for EIP-1559 gas
+/// estimation.
 pub type FeeHistory {
   FeeHistory(
+    /// Lowest block number in the returned range.
     oldest_block: BlockNumber,
-    // Oldest block in the returned range
+    /// Base fee per gas for each block. Contains N+1 entries (includes the
+    /// next block's base fee).
     base_fee_per_gas: List(String),
-    // Base fee per gas for each block (N+1 entries: includes next block)
+    /// Ratio of gas used to gas limit for each block (0.0 to 1.0).
     gas_used_ratio: List(Float),
-    // Gas used ratio for each block (0.0 to 1.0)
+    /// Priority fee at requested percentiles for each block. Empty if no
+    /// percentiles were requested.
     reward: List(List(String)),
-    // Priority fee percentiles for each block (if requested)
   )
 }
