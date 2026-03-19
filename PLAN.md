@@ -114,28 +114,67 @@ Full ABI encoder/decoder implemented in `ethereum/abi/` with 108 tests covering 
 
 ### 5.2 Middleware
 
-- Retry with backoff on transient errors
-- Rate limiting
-- Request logging
+- Retry with exponential backoff on transient errors (429, 503, connection reset)
+- Rate limiting (respect provider rate limits)
+- Request logging (debug-level, opt-in)
 
 ### 5.3 WebSocket support
 
 - WebSocket provider for subscriptions (eth_subscribe)
 - Event streaming for new blocks, pending transactions, logs
+- Leverages BEAM's strength in concurrent connections
 
-## Phase 6: Architecture decisions
+## Phase 6: Code cleanup
 
-### 6.1 Library vs CLI split
+Small items that should be addressed to keep the codebase clean.
 
-Gleeth should be a library for Gleam projects to interact with Ethereum. The CLI currently lives in the same package (`src/gleeth.gleam` + `src/gleeth/commands/`). This needs a decision:
+### 6.1 Remove legacy contract.gleam ParamType shim
 
-- **Option A: Split into two packages** - `gleeth` (library only) and `gleeth_cli` (depends on gleeth). Cleaner separation, library consumers don't pull in CLI dependencies. Standard approach in the Gleam/Rust ecosystem.
-- **Option B: Keep as one package** - simpler to maintain, fewer repos. The CLI entrypoint is just one file and the commands are thin wrappers around library functions.
-- **Current status**: the CLI is useful for manual testing and verification (e.g. `gleeth send` against anvil). No need to split immediately, but should decide before publishing to Hex.
+`contract.gleam` still has its own `ParamType` enum (UInt256, Address, String,
+Bool, Bytes32) that just wraps the ABI type system. It predates the ABI module.
+The CLI `call` command should use ABI types directly, then the legacy types can
+be deleted.
 
-## Phase 7: Ergonomics and developer experience (future)
+### 6.2 Remove unreachable cases in execute_command
 
-### 7.1 Value conversion helpers
+`gleeth.gleam` `execute_command` has `Wallet` and `Help` branches that are
+unreachable because both are handled before the function is called.
+
+### 6.3 Reduce public API surface
+
+- `cli.gleam` exports internal helpers (`get_env_rpc_url`, `extract_rpc_url`)
+  that should be private
+- Some functions in `abi/encode.gleam` are public but are implementation details
+
+### 6.4 Fix mock wallet in random_test.gleam
+
+The "integration" test uses a mock that returns hardcoded values, so it doesn't
+actually test wallet integration. Either use the real wallet module or delete it.
+
+### 6.5 CI Node.js deprecation
+
+Update `actions/checkout` and `erlef/setup-beam` to versions that support
+Node.js 24. GitHub deadline is June 2026.
+
+## Phase 7: Architecture decisions
+
+### 7.1 Library vs CLI split
+
+Gleeth should be a library for Gleam projects to interact with Ethereum. The CLI
+currently lives in the same package (`src/gleeth.gleam` + `src/gleeth/commands/`).
+
+- **Option A: Split into two packages** - `gleeth` (library only) and
+  `gleeth_cli` (depends on gleeth). Cleaner separation, library consumers don't
+  pull in CLI dependencies (`argv`, `simplifile`, all command modules). Standard
+  approach in the Gleam/Rust ecosystem.
+- **Option B: Keep as one package** - simpler to maintain, fewer repos. The CLI
+  entrypoint is just one file and the commands are thin wrappers.
+- **Current status**: published as one package (v1.0.0). Should split before
+  library gets more users - consumers currently pull in CLI deps they don't need.
+
+## Phase 8: Ergonomics and developer experience
+
+### 8.1 Value conversion helpers
 
 Currently all numeric values (wei, gas, nonce) are `0x`-prefixed hex strings
 matching the JSON-RPC wire format. This is efficient internally but confusing
@@ -147,14 +186,14 @@ for users who think in ETH or decimal. Add a `wei` module:
 - `wei.to_gwei("0x3b9aca00")` -> `"1.0"`
 - Decimal string to/from hex: `hex.from_int(21000)` -> `"0x5208"`
 
-### 7.2 EIP-55 checksummed addresses
+### 8.2 EIP-55 checksummed addresses
 
 Validate and produce mixed-case checksummed addresses. Trivial to implement
 since keccak256 is already available. ~30 lines.
 
-### 7.3 Type-safe transaction builders
+### 8.3 Type-safe transaction builders
 
-Consider a builder pattern that accepts human-readable values:
+Builder pattern that accepts human-readable values:
 
 ```
 transaction.build()
@@ -164,12 +203,27 @@ transaction.build()
 |> transaction.sign(wallet)
 ```
 
-## Phase 8: Comprehensive testing (pre-audit)
+### 8.4 Gas estimation helpers
+
+Auto-populate gas limit, priority fee, and max fee from the network. Currently
+users must make 3 separate RPC calls and wire them together manually.
+
+### 8.5 Receipt polling
+
+`methods.wait_for_receipt(provider, tx_hash, timeout_ms)` that polls with
+backoff. Currently users have to loop manually.
+
+### 8.6 Nonce manager
+
+Track pending nonces locally so multiple transactions can be sent without
+waiting for each to be mined. Critical for any app sending more than one tx.
+
+## Phase 9: Comprehensive testing (pre-audit)
 
 Before recommending gleeth for mainnet use, the test suite needs significant
 expansion to build confidence that funds are safe.
 
-### 8.1 Transaction signing edge cases
+### 9.1 Transaction signing edge cases
 
 - Zero-value fields (nonce 0, value 0, empty data)
 - Max-size calldata, multiple access list entries
@@ -177,36 +231,71 @@ expansion to build confidence that funds are safe.
 - Contract creation (empty `to` field)
 - Cross-client verification: compare output against ethers.js, web3.py, alloy
 
-### 8.2 Fuzz testing
+### 9.2 Fuzz testing
 
 - Random transaction parameters signed by gleeth and verified by Foundry `cast`
 - Random ABI encode/decode roundtrips with property-based testing
 - Random private keys: sign -> recover -> verify address matches
 
-### 8.3 Integration test expansion
+### 9.3 Integration test expansion
 
 - Full ERC-20 transfer flow against anvil (deploy, approve, transferFrom)
 - Contract deployment and interaction end-to-end
 - Error paths: reverts, out-of-gas, invalid nonce, insufficient balance
 - Multi-transaction sequences (nonce management)
 
-### 8.4 RPC edge cases
+### 9.4 RPC edge cases
 
 - Handling of null/missing fields in RPC responses
 - Large block ranges in getLogs
 - Pending transaction queries
 - Chain reorganization handling (removed logs)
 
-### 8.5 Crypto primitives
+### 9.5 Crypto primitives
 
 - NIST/Wycheproof test vectors for secp256k1
 - Known-answer tests for keccak256 against NIST test vectors
 - Signature malleability checks (s-value normalization)
 
-## Phase 9: Advanced features (future)
+## Phase 10: Advanced features (future)
 
-- ENS name resolution
-- HD wallets / BIP39 mnemonics
-- Multi-chain configuration (chain registry)
-- Contract deployment
-- Multicall batching
+### 10.1 Typed contract bindings
+
+Generate Gleam modules from ABI JSON files (like alloy's `sol!` macro or
+ethers' `abigen`). Type-safe function calls instead of raw calldata construction.
+
+### 10.2 EIP-712 typed data signing
+
+`signTypedData` for permit signatures, off-chain order books, meta-transactions.
+Increasingly common in DeFi protocols.
+
+### 10.3 Batch JSON-RPC
+
+Send multiple RPC calls in a single HTTP request per the JSON-RPC batch spec.
+Different from Multicall - this is at the transport level, works for any RPC
+method, not just contract reads.
+
+### 10.4 Block subscription via polling
+
+For HTTP providers that don't support WebSocket, poll `eth_blockNumber` and emit
+new blocks. BEAM makes this trivial with a GenServer/process.
+
+### 10.5 ENS name resolution
+
+Resolve `.eth` names to addresses via the ENS registry contracts.
+
+### 10.6 HD wallets / BIP39 mnemonics
+
+Generate wallets from seed phrases, derivation paths (m/44'/60'/0'/0/n).
+
+### 10.7 Multi-chain configuration
+
+Chain registry with RPC URLs, block explorers, native currency info.
+
+### 10.8 Contract deployment
+
+Build and send contract creation transactions.
+
+### 10.9 Multicall batching
+
+Batch multiple contract read calls into a single RPC request via Multicall3.
