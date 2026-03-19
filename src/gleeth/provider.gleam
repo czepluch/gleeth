@@ -3,6 +3,9 @@
 //// consumers a safe handle they can pass to RPC calls, contract interactions,
 //// and transaction builders.
 ////
+//// **Warning**: gleeth has not been audited. Recommended for testnet and
+//// development use only.
+////
 //// Because `Provider` is opaque, the only way to construct one is through
 //// `new`, `mainnet`, or `sepolia` - all of which guarantee the URL is valid.
 ////

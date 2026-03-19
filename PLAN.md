@@ -164,7 +164,46 @@ transaction.build()
 |> transaction.sign(wallet)
 ```
 
-## Phase 8: Advanced features (future)
+## Phase 8: Comprehensive testing (pre-audit)
+
+Before recommending gleeth for mainnet use, the test suite needs significant
+expansion to build confidence that funds are safe.
+
+### 8.1 Transaction signing edge cases
+
+- Zero-value fields (nonce 0, value 0, empty data)
+- Max-size calldata, multiple access list entries
+- Unusual chain IDs (very large, 0, 1)
+- Contract creation (empty `to` field)
+- Cross-client verification: compare output against ethers.js, web3.py, alloy
+
+### 8.2 Fuzz testing
+
+- Random transaction parameters signed by gleeth and verified by Foundry `cast`
+- Random ABI encode/decode roundtrips with property-based testing
+- Random private keys: sign -> recover -> verify address matches
+
+### 8.3 Integration test expansion
+
+- Full ERC-20 transfer flow against anvil (deploy, approve, transferFrom)
+- Contract deployment and interaction end-to-end
+- Error paths: reverts, out-of-gas, invalid nonce, insufficient balance
+- Multi-transaction sequences (nonce management)
+
+### 8.4 RPC edge cases
+
+- Handling of null/missing fields in RPC responses
+- Large block ranges in getLogs
+- Pending transaction queries
+- Chain reorganization handling (removed logs)
+
+### 8.5 Crypto primitives
+
+- NIST/Wycheproof test vectors for secp256k1
+- Known-answer tests for keccak256 against NIST test vectors
+- Signature malleability checks (s-value normalization)
+
+## Phase 9: Advanced features (future)
 
 - ENS name resolution
 - HD wallets / BIP39 mnemonics

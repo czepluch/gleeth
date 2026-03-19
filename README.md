@@ -5,6 +5,10 @@
 
 An Ethereum library for Gleam, targeting the Erlang (BEAM) runtime. Provides JSON-RPC client, transaction signing, ABI encoding/decoding, and wallet management.
 
+> **Warning**: gleeth has not been audited and is in early development. It is
+> recommended for testnet and development use only. Do not use with real funds
+> in production without thorough independent review.
+
 ## Installation
 
 ```sh
