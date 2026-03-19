@@ -561,6 +561,478 @@ pub fn sign_eip1559_with_access_list_hash_test() {
 }
 
 // =============================================================================
+// Edge case: Zero value transfer (legacy)
+// cast mktx --legacy --private-key 0xac09...ff80 --chain 1 --nonce 0
+//   --gas-price 1000000000 --gas-limit 21000 --value 0 <recipient>
+// =============================================================================
+
+pub fn sign_legacy_zero_value_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      recipient,
+      "0x0",
+      "0x5208",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      1,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0xf86380843b9aca008252089470997970c51812dc3a010c7d01b50e0d17dc79c8808026a02d7fa468cc7bf47232c9780678569bcb4fe80d94a4a5c7601d28a905f1a53439a077b160a89ca5b63a9e34bd0054ce573f84caebf11e44f679744e58f28a8f7e17",
+  )
+}
+
+pub fn sign_legacy_zero_value_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      recipient,
+      "0x0",
+      "0x5208",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      1,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  transaction.get_transaction_hash(signed)
+  |> should.equal(
+    "0x40a2593944e9b59aa785b97993aea3f664b042a30f40cc7c1e7654354dfd4399",
+  )
+}
+
+// =============================================================================
+// Edge case: Contract creation (empty to, legacy)
+// cast mktx --legacy --private-key 0xac09...ff80 --chain 1 --nonce 0
+//   --gas-price 1000000000 --gas-limit 100000 --value 0 --create "0x6080604052"
+// =============================================================================
+
+pub fn sign_legacy_contract_creation_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      "",
+      "0x0",
+      "0x186a0",
+      "0x3b9aca00",
+      "0x0",
+      "0x6080604052",
+      1,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0xf85580843b9aca00830186a0808085608060405226a0c7a6b0091101e7dc5fa8f23076a5eda2910c9ac04cf0e2704179ec1657650443a06597e0671e1c81fa9c6e387bc3bba6fe170e8c8bea3590475f1bc01e155c34e8",
+  )
+}
+
+pub fn sign_legacy_contract_creation_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      "",
+      "0x0",
+      "0x186a0",
+      "0x3b9aca00",
+      "0x0",
+      "0x6080604052",
+      1,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  transaction.get_transaction_hash(signed)
+  |> should.equal(
+    "0x91c67f7d1a248ba5ed35d7a4eb96800910b5049ffa2a16c55fbc3e891c45f4f7",
+  )
+}
+
+// =============================================================================
+// Edge case: Large chain ID (42161 = Arbitrum)
+// cast mktx --legacy --private-key 0xac09...ff80 --chain 42161 --nonce 0
+//   --gas-price 100000000 --gas-limit 21000 --value 1ether <recipient>
+// =============================================================================
+
+pub fn sign_legacy_arbitrum_chain_id_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      recipient,
+      "0xde0b6b3a7640000",
+      "0x5208",
+      "0x5f5e100",
+      "0x0",
+      "0x",
+      42_161,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0xf86e808405f5e1008252089470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a76400008083014985a07d73c7af71f4d31071b634059ba617fe83da0cc70ed1560538e1794f1d2c5f5ea052491db8308f06708b609487c9083a01535cdcdf03b07d82eb7c45dbf67be7aa",
+  )
+}
+
+pub fn sign_legacy_arbitrum_chain_id_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      recipient,
+      "0xde0b6b3a7640000",
+      "0x5208",
+      "0x5f5e100",
+      "0x0",
+      "0x",
+      42_161,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  // EIP-155: v = recovery_id + 2*42161 + 35 = 84357 or 84358
+  transaction.get_transaction_hash(signed)
+  |> should.equal(
+    "0x6fb5cf9a7caec427f87bd37019170de38757bfdf86e04f5fa65f9d6ca5ccf3e5",
+  )
+}
+
+// =============================================================================
+// Edge case: Very large chain ID (4294967295 = 2^32-1)
+// cast mktx --legacy --private-key 0xac09...ff80 --chain 4294967295 --nonce 0
+//   --gas-price 1000000000 --gas-limit 21000 --value 0 <recipient>
+// =============================================================================
+
+pub fn sign_legacy_max_uint32_chain_id_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      recipient,
+      "0x0",
+      "0x5208",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      4_294_967_295,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0xf86880843b9aca008252089470997970c51812dc3a010c7d01b50e0d17dc79c88080850200000022a0010f05ea32701898b544ab0cadc905792a24dc484932de0a9693bde34a33f022a07744fd9d9ded592890dfa807d844d15ce7082c6ca8f72859224c41acdee24df0",
+  )
+}
+
+pub fn sign_legacy_max_uint32_chain_id_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      recipient,
+      "0x0",
+      "0x5208",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      4_294_967_295,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  // v = recovery_id + 2*4294967295 + 35 = 8589934625 or 8589934626
+  transaction.get_transaction_hash(signed)
+  |> should.equal(
+    "0xcccc8488215d23e1adf28ba54db846a75d6e35131b528555b4de424c8e0ac68e",
+  )
+}
+
+// =============================================================================
+// Edge case: EIP-1559 zero value, zero priority fee
+// cast mktx --private-key 0xac09...ff80 --chain 1 --nonce 0
+//   --priority-gas-price 0 --gas-price 1000000000 --gas-limit 21000
+//   --value 0 <recipient>
+// =============================================================================
+
+pub fn sign_eip1559_zero_value_zero_priority_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x0",
+      "0x5208",
+      "0x3b9aca00",
+      "0x0",
+      "0x0",
+      "0x",
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0x02f866018080843b9aca008252089470997970c51812dc3a010c7d01b50e0d17dc79c88080c080a051899494986b9594e3c8290a7aa6ededf275a287bb8616f4f85dc24302770463a07e2d6cef7abe45fc6c1c031dc18ec2e480ce3a65f4420174a8cb2a909d76dfea",
+  )
+}
+
+pub fn sign_eip1559_zero_value_zero_priority_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x0",
+      "0x5208",
+      "0x3b9aca00",
+      "0x0",
+      "0x0",
+      "0x",
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  transaction.get_eip1559_transaction_hash(signed)
+  |> should.equal(
+    "0xd99ae44adeeb815c7835a695df1f1550ea5f84664acc96864b8dcd1888df2d1a",
+  )
+}
+
+// =============================================================================
+// Edge case: EIP-1559 contract creation (empty to)
+// cast mktx --private-key 0xac09...ff80 --chain 1 --nonce 0
+//   --priority-gas-price 1000000000 --gas-price 20000000000
+//   --gas-limit 100000 --value 0 --create "0x6080604052"
+// =============================================================================
+
+pub fn sign_eip1559_contract_creation_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      "",
+      "0x0",
+      "0x186a0",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x0",
+      "0x6080604052",
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0x02f85d0180843b9aca008504a817c800830186a08080856080604052c080a0dfae576153fbfc3548eda2be6fb5a1b5a18623e73a3314941295627ff4fa566ca00b66e34436bf643793e2b1b4dbec02493b18e451a921ee0fe099cc62409cefa5",
+  )
+}
+
+pub fn sign_eip1559_contract_creation_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      "",
+      "0x0",
+      "0x186a0",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x0",
+      "0x6080604052",
+      1,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  transaction.get_eip1559_transaction_hash(signed)
+  |> should.equal(
+    "0x1d8cc22be95c7cb13132f876a22f1a96098c44e62c3e15b5437f5d2688cbc696",
+  )
+}
+
+// =============================================================================
+// Edge case: EIP-1559 large chain ID (42161 = Arbitrum)
+// cast mktx --private-key 0xac09...ff80 --chain 42161 --nonce 0
+//   --priority-gas-price 100000000 --gas-price 1000000000
+//   --gas-limit 21000 --value 1ether <recipient>
+// =============================================================================
+
+pub fn sign_eip1559_arbitrum_chain_id_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0xde0b6b3a7640000",
+      "0x5208",
+      "0x3b9aca00",
+      "0x5f5e100",
+      "0x0",
+      "0x",
+      42_161,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0x02f87482a4b1808405f5e100843b9aca008252089470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c080a05f1b03639264cf1a6855788d193dda26c5427a4e2e9a4b9c2034bdee6b26977ca01087b43c4020c4bf58c09bcd0303281eca6315efddb5d001d1d1ccb63bfc7db2",
+  )
+}
+
+pub fn sign_eip1559_arbitrum_chain_id_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0xde0b6b3a7640000",
+      "0x5208",
+      "0x3b9aca00",
+      "0x5f5e100",
+      "0x0",
+      "0x",
+      42_161,
+      [],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  transaction.get_eip1559_transaction_hash(signed)
+  |> should.equal(
+    "0x2bc399f10c2bd29bdf4c24108959d6b78bc6ea3b9b9ee18b1f848dd28a1a393c",
+  )
+}
+
+// =============================================================================
+// Edge case: EIP-1559 with multi-entry access list (2 addresses, 3 keys total)
+// cast mktx --private-key 0xac09...ff80 --chain 1 --nonce 5
+//   --priority-gas-price 1000000000 --gas-price 20000000000
+//   --gas-limit 50000 --value 0 <recipient>
+//   --access-list '[{"address":"<recipient>","storageKeys":["0x0...01","0x0...02"]},
+//                   {"address":"<sender>","storageKeys":["0x0...00"]}]'
+// =============================================================================
+
+pub fn sign_eip1559_multi_access_list_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x0",
+      "0xc350",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x5",
+      "0x",
+      1,
+      [
+        transaction.AccessListEntry(
+          address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          storage_keys: [
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000000000000000000000000000002",
+          ],
+        ),
+        transaction.AccessListEntry(
+          address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          storage_keys: [
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+          ],
+        ),
+      ],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  signed.raw_transaction
+  |> should.equal(
+    "0x02f8ff0105843b9aca008504a817c80082c3509470997970c51812dc3a010c7d01b50e0d17dc79c88080f893f8599470997970c51812dc3a010c7d01b50e0d17dc79c8f842a00000000000000000000000000000000000000000000000000000000000000001a00000000000000000000000000000000000000000000000000000000000000002f794f39fd6e51aad88f6f4ce6ab8827279cfffb92266e1a0000000000000000000000000000000000000000000000000000000000000000080a056f559eb35d8ed096c8cb2b58a02c88c989fbe36030137bd26862576248a1a94a031e1d0ba64a0097d188bde6af8c29f3ca51f6d71cb9c69540d52a69ef17829fe",
+  )
+}
+
+pub fn sign_eip1559_multi_access_list_hash_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_eip1559_transaction(
+      recipient,
+      "0x0",
+      "0xc350",
+      "0x4a817c800",
+      "0x3b9aca00",
+      "0x5",
+      "0x",
+      1,
+      [
+        transaction.AccessListEntry(
+          address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          storage_keys: [
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000000000000000000000000000002",
+          ],
+        ),
+        transaction.AccessListEntry(
+          address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          storage_keys: [
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+          ],
+        ),
+      ],
+    )
+  let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
+
+  transaction.get_eip1559_transaction_hash(signed)
+  |> should.equal(
+    "0x913815f43f55063cf9b2eedae757ce2198967b52b874699761442281e5fc6ec2",
+  )
+}
+
+// =============================================================================
+// Edge case: Chain ID 1 v-value verification
+// Verify EIP-155 v calculation: v = recovery_id + 2*chain_id + 35
+// =============================================================================
+
+pub fn sign_legacy_chain_id_1_v_value_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      recipient,
+      "0x0",
+      "0x5208",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      1,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  // For chain_id 1: v must be 37 (0x25) or 38 (0x26)
+  // v = recovery_id + 2*1 + 35
+  case signed.v {
+    "0x25" -> should.be_true(True)
+    "0x26" -> should.be_true(True)
+    _ -> should.fail()
+  }
+}
+
+pub fn sign_legacy_max_uint32_chain_id_v_value_test() {
+  let assert Ok(w) = wallet.from_private_key_hex(test_private_key)
+  let assert Ok(tx) =
+    transaction.create_legacy_transaction(
+      recipient,
+      "0x0",
+      "0x5208",
+      "0x3b9aca00",
+      "0x0",
+      "0x",
+      4_294_967_295,
+    )
+  let assert Ok(signed) = transaction.sign_transaction(tx, w)
+
+  // v = recovery_id + 2*4294967295 + 35
+  // recovery_id 0: 8589934625 = 0x200000023
+  // recovery_id 1: 8589934626 = 0x200000024
+  case signed.v {
+    "0x200000023" -> should.be_true(True)
+    "0x200000022" -> should.be_true(True)
+    _ -> should.fail()
+  }
+}
+
+// =============================================================================
 // Anvil integration tests
 // Skips gracefully if anvil is not running on localhost:8545
 // Start anvil with: anvil
