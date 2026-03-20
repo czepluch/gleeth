@@ -1,3 +1,4 @@
+import gleam/bit_array
 import gleam/int
 import gleam/list
 import gleam/result
@@ -720,3 +721,292 @@ pub const arbitrum_chain_id = 42_161
 
 /// Optimism mainnet chain ID
 pub const optimism_chain_id = 10
+
+// =============================================================================
+// Transaction Decoding
+// =============================================================================
+
+/// A decoded transaction, either legacy or EIP-1559.
+pub type DecodedTransaction {
+  DecodedLegacy(SignedTransaction)
+  DecodedEip1559(SignedEip1559Transaction)
+}
+
+/// Decode a raw transaction hex string, auto-detecting the type.
+/// Legacy transactions start with an RLP list prefix (0xc0-0xff).
+/// EIP-1559 transactions start with 0x02.
+pub fn decode(raw_hex: String) -> Result(DecodedTransaction, TransactionError) {
+  use raw_bytes <- result.try(
+    hex.decode(raw_hex)
+    |> result.map_error(fn(_) { EncodingFailed("Invalid hex string") }),
+  )
+  case raw_bytes {
+    <<0x02, _rest:bits>> -> {
+      use tx <- result.map(decode_eip1559(raw_hex))
+      DecodedEip1559(tx)
+    }
+    _ -> {
+      use tx <- result.map(decode_legacy(raw_hex))
+      DecodedLegacy(tx)
+    }
+  }
+}
+
+/// Decode a raw signed legacy transaction from its RLP-encoded hex string.
+/// Recovers chain_id from the EIP-155 v value: chain_id = (v - 35) / 2.
+pub fn decode_legacy(
+  raw_hex: String,
+) -> Result(SignedTransaction, TransactionError) {
+  use raw_bytes <- result.try(
+    hex.decode(raw_hex)
+    |> result.map_error(fn(_) { EncodingFailed("Invalid hex string") }),
+  )
+  use rlp_item <- result.try(
+    rlp.decode(raw_bytes)
+    |> result.map_error(fn(_) { EncodingFailed("Invalid RLP encoding") }),
+  )
+  case rlp_item {
+    rlp.RlpList(items) -> decode_legacy_items(items, raw_hex)
+    _ -> Error(EncodingFailed("Expected RLP list for legacy transaction"))
+  }
+}
+
+fn decode_legacy_items(
+  items: List(rlp.RlpItem),
+  raw_hex: String,
+) -> Result(SignedTransaction, TransactionError) {
+  case items {
+    [
+      nonce_rlp,
+      gas_price_rlp,
+      gas_limit_rlp,
+      to_rlp,
+      value_rlp,
+      data_rlp,
+      v_rlp,
+      r_rlp,
+      s_rlp,
+    ] -> {
+      let nonce = rlp_to_hex_amount(nonce_rlp)
+      let gas_price = rlp_to_hex_amount(gas_price_rlp)
+      let gas_limit = rlp_to_hex_amount(gas_limit_rlp)
+      let to = rlp_to_address(to_rlp)
+      let value = rlp_to_hex_amount(value_rlp)
+      let data = rlp_to_hex_data(data_rlp)
+      let v_int = rlp_to_int(v_rlp)
+      let r = rlp_to_hex_bytes(r_rlp)
+      let s = rlp_to_hex_bytes(s_rlp)
+
+      // EIP-155: v = recovery_id + 2 * chain_id + 35
+      // chain_id = (v - 35) / 2
+      let chain_id = { v_int - 35 } / 2
+      let v_hex = "0x" <> string.lowercase(int.to_base16(v_int))
+
+      Ok(SignedTransaction(
+        nonce: nonce,
+        gas_price: gas_price,
+        gas_limit: gas_limit,
+        to: to,
+        value: value,
+        data: data,
+        chain_id: chain_id,
+        v: v_hex,
+        r: r,
+        s: s,
+        raw_transaction: raw_hex,
+      ))
+    }
+    _ ->
+      Error(EncodingFailed(
+        "Legacy transaction must have 9 RLP items, got "
+        <> int.to_string(list.length(items)),
+      ))
+  }
+}
+
+/// Decode a raw signed EIP-1559 (Type 2) transaction from its hex string.
+/// The input must start with 0x02 (the type prefix).
+pub fn decode_eip1559(
+  raw_hex: String,
+) -> Result(SignedEip1559Transaction, TransactionError) {
+  use raw_bytes <- result.try(
+    hex.decode(raw_hex)
+    |> result.map_error(fn(_) { EncodingFailed("Invalid hex string") }),
+  )
+  case raw_bytes {
+    <<0x02, payload:bits>> -> {
+      use rlp_item <- result.try(
+        rlp.decode(payload)
+        |> result.map_error(fn(_) { EncodingFailed("Invalid RLP encoding") }),
+      )
+      case rlp_item {
+        rlp.RlpList(items) -> decode_eip1559_items(items, raw_hex)
+        _ -> Error(EncodingFailed("Expected RLP list for EIP-1559 transaction"))
+      }
+    }
+    _ -> Error(EncodingFailed("EIP-1559 transaction must start with 0x02"))
+  }
+}
+
+fn decode_eip1559_items(
+  items: List(rlp.RlpItem),
+  raw_hex: String,
+) -> Result(SignedEip1559Transaction, TransactionError) {
+  case items {
+    [
+      chain_id_rlp,
+      nonce_rlp,
+      max_priority_fee_rlp,
+      max_fee_rlp,
+      gas_limit_rlp,
+      to_rlp,
+      value_rlp,
+      data_rlp,
+      access_list_rlp,
+      v_rlp,
+      r_rlp,
+      s_rlp,
+    ] -> {
+      let chain_id = rlp_to_int(chain_id_rlp)
+      let nonce = rlp_to_hex_amount(nonce_rlp)
+      let max_priority_fee = rlp_to_hex_amount(max_priority_fee_rlp)
+      let max_fee = rlp_to_hex_amount(max_fee_rlp)
+      let gas_limit = rlp_to_hex_amount(gas_limit_rlp)
+      let to = rlp_to_address(to_rlp)
+      let value = rlp_to_hex_amount(value_rlp)
+      let data = rlp_to_hex_data(data_rlp)
+      let access_list = decode_access_list(access_list_rlp)
+      let v_int = rlp_to_int(v_rlp)
+      let v_hex = "0x" <> string.lowercase(int.to_base16(v_int))
+      let r = rlp_to_hex_bytes(r_rlp)
+      let s = rlp_to_hex_bytes(s_rlp)
+
+      Ok(SignedEip1559Transaction(
+        chain_id: chain_id,
+        nonce: nonce,
+        max_priority_fee_per_gas: max_priority_fee,
+        max_fee_per_gas: max_fee,
+        gas_limit: gas_limit,
+        to: to,
+        value: value,
+        data: data,
+        access_list: access_list,
+        v: v_hex,
+        r: r,
+        s: s,
+        raw_transaction: raw_hex,
+      ))
+    }
+    _ ->
+      Error(EncodingFailed(
+        "EIP-1559 transaction must have 12 RLP items, got "
+        <> int.to_string(list.length(items)),
+      ))
+  }
+}
+
+fn decode_access_list(item: rlp.RlpItem) -> List(AccessListEntry) {
+  case item {
+    rlp.RlpList(entries) -> list.filter_map(entries, decode_access_list_entry)
+    _ -> []
+  }
+}
+
+fn decode_access_list_entry(item: rlp.RlpItem) -> Result(AccessListEntry, Nil) {
+  case item {
+    rlp.RlpList([addr_rlp, keys_rlp]) -> {
+      let address = rlp_to_address(addr_rlp)
+      let storage_keys = case keys_rlp {
+        rlp.RlpList(keys) ->
+          list.map(keys, fn(k) {
+            case k {
+              rlp.RlpBytes(bytes) ->
+                "0x" <> string.lowercase(bit_array.base16_encode(bytes))
+              _ -> "0x"
+            }
+          })
+        _ -> []
+      }
+      Ok(AccessListEntry(address: address, storage_keys: storage_keys))
+    }
+    _ -> Error(Nil)
+  }
+}
+
+// =============================================================================
+// RLP Item to typed value helpers
+// =============================================================================
+
+/// Convert RLP bytes to a hex amount string (0x-prefixed, minimal encoding)
+fn rlp_to_hex_amount(item: rlp.RlpItem) -> String {
+  case item {
+    rlp.RlpBytes(<<>>) -> "0x0"
+    rlp.RlpBytes(bytes) -> {
+      let hex_str = string.lowercase(bit_array.base16_encode(bytes))
+      "0x" <> drop_leading_hex_zeros(hex_str)
+    }
+    _ -> "0x0"
+  }
+}
+
+/// Convert RLP bytes to an address string (0x-prefixed, full 40 chars)
+fn rlp_to_address(item: rlp.RlpItem) -> String {
+  case item {
+    rlp.RlpBytes(<<>>) -> ""
+    rlp.RlpBytes(bytes) ->
+      "0x" <> string.lowercase(bit_array.base16_encode(bytes))
+    _ -> ""
+  }
+}
+
+/// Convert RLP bytes to hex data string (0x-prefixed, preserves all bytes)
+fn rlp_to_hex_data(item: rlp.RlpItem) -> String {
+  case item {
+    rlp.RlpBytes(<<>>) -> "0x"
+    rlp.RlpBytes(bytes) ->
+      "0x" <> string.lowercase(bit_array.base16_encode(bytes))
+    _ -> "0x"
+  }
+}
+
+/// Convert RLP bytes to hex string preserving all bytes (for r, s values)
+fn rlp_to_hex_bytes(item: rlp.RlpItem) -> String {
+  case item {
+    rlp.RlpBytes(bytes) ->
+      "0x" <> string.lowercase(bit_array.base16_encode(bytes))
+    _ -> "0x"
+  }
+}
+
+/// Convert RLP bytes to an integer
+fn rlp_to_int(item: rlp.RlpItem) -> Int {
+  case item {
+    rlp.RlpBytes(<<>>) -> 0
+    rlp.RlpBytes(bytes) -> bytes_to_int(bytes)
+    _ -> 0
+  }
+}
+
+/// Convert big-endian bytes to an integer
+fn bytes_to_int(data: BitArray) -> Int {
+  do_bytes_to_int(data, 0)
+}
+
+fn do_bytes_to_int(data: BitArray, acc: Int) -> Int {
+  case data {
+    <<byte:8, rest:bits>> -> do_bytes_to_int(rest, acc * 256 + byte)
+    _ -> acc
+  }
+}
+
+/// Drop leading zeros from a hex string (but keep at least one digit)
+fn drop_leading_hex_zeros(hex_str: String) -> String {
+  case hex_str {
+    "0" <> rest ->
+      case rest {
+        "" -> "0"
+        _ -> drop_leading_hex_zeros(rest)
+      }
+    _ -> hex_str
+  }
+}
