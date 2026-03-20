@@ -1,4 +1,7 @@
+import gleam/bit_array
 import gleam/result
+import gleam/string
+import gleeth/crypto/keccak
 import gleeth/crypto/random
 import gleeth/crypto/secp256k1
 
@@ -151,6 +154,50 @@ pub fn sign_personal_message(
 ) -> Result(secp256k1.Signature, WalletError) {
   secp256k1.sign_personal_message(message, wallet.private_key)
   |> result.map_error(SigningFailed)
+}
+
+// =============================================================================
+// Personal Message Recovery (EIP-191)
+// =============================================================================
+
+/// Recover the signer address from an EIP-191 personal message signature.
+/// Applies the standard prefix before recovery, matching what MetaMask
+/// and other wallets produce with personal_sign.
+pub fn recover_personal_message(
+  message: String,
+  signature_hex: String,
+) -> Result(String, WalletError) {
+  use signature <- result.try(
+    secp256k1.signature_from_hex(signature_hex)
+    |> result.map_error(InvalidHex),
+  )
+  let message_hash = personal_message_hash(message)
+  use address <- result.try(
+    secp256k1.recover_address(message_hash, signature)
+    |> result.map_error(SigningFailed),
+  )
+  Ok(secp256k1.address_to_string(address))
+}
+
+/// Verify that a specific address signed a personal message.
+pub fn verify_personal_message(
+  message: String,
+  signature_hex: String,
+  expected_address: String,
+) -> Result(Bool, WalletError) {
+  use recovered <- result.try(recover_personal_message(message, signature_hex))
+  Ok(string.lowercase(recovered) == string.lowercase(expected_address))
+}
+
+/// Compute the EIP-191 personal message hash.
+/// hash = keccak256("\x19Ethereum Signed Message:\n" + len(message) + message)
+fn personal_message_hash(message: String) -> BitArray {
+  let message_bytes = bit_array.from_string(message)
+  let message_length = bit_array.byte_size(message_bytes) |> string.inspect
+  let prefix = "\\x19Ethereum Signed Message:\\n" <> message_length
+  let prefix_bytes = bit_array.from_string(prefix)
+  let full_message = bit_array.append(prefix_bytes, message_bytes)
+  keccak.keccak256_binary(full_message)
 }
 
 // =============================================================================

@@ -238,6 +238,28 @@ pub fn signature_from_vrs(
   Ok(Signature(r: r_bytes, s: s_bytes, recovery_id: recovery_id))
 }
 
+/// Parse a 65-byte hex signature string (r[32] + s[32] + v[1]) into a Signature.
+/// Handles v=0/1 and v=27/28 (normalizes to recovery_id 0/1).
+pub fn signature_from_hex(hex_string: String) -> Result(Signature, String) {
+  use bytes <- result.try(hex.decode(hex_string))
+  case bit_array.byte_size(bytes) {
+    65 -> {
+      let assert Ok(r) = bit_array.slice(bytes, 0, 32)
+      let assert Ok(s) = bit_array.slice(bytes, 32, 32)
+      let assert Ok(<<v_byte:8>>) = bit_array.slice(bytes, 64, 1)
+      let recovery_id = case v_byte {
+        0 | 1 -> v_byte
+        27 -> 0
+        28 -> 1
+        _ -> v_byte - 27
+      }
+      Ok(Signature(r: r, s: s, recovery_id: recovery_id))
+    }
+    size ->
+      Error("Signature must be exactly 65 bytes, got " <> string.inspect(size))
+  }
+}
+
 // =============================================================================
 // Signature Verification
 // =============================================================================
