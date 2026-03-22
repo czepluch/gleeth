@@ -64,7 +64,13 @@ pub fn cast_verify_legacy_sepolia_test() {
   case cast_available() {
     False -> Nil
     True -> {
-      verify_legacy(42, 500_000_000_000_000_000, 21_000, 20_000_000_000, 11_155_111)
+      verify_legacy(
+        42,
+        500_000_000_000_000_000,
+        21_000,
+        20_000_000_000,
+        11_155_111,
+      )
     }
   }
 }
@@ -138,13 +144,20 @@ fn verify_legacy(
   // Sign with cast
   let cast_cmd =
     "cast mktx --legacy"
-    <> " --private-key " <> test_private_key
-    <> " --chain " <> int.to_string(chain_id)
-    <> " --nonce " <> int.to_string(nonce)
-    <> " --gas-price " <> int.to_string(gas_price)
-    <> " --gas-limit " <> int.to_string(gas_limit)
-    <> " --value " <> int.to_string(value)
-    <> " " <> recipient
+    <> " --private-key "
+    <> test_private_key
+    <> " --chain "
+    <> int.to_string(chain_id)
+    <> " --nonce "
+    <> int.to_string(nonce)
+    <> " --gas-price "
+    <> int.to_string(gas_price)
+    <> " --gas-limit "
+    <> int.to_string(gas_limit)
+    <> " --value "
+    <> int.to_string(value)
+    <> " "
+    <> recipient
   let cast_output = run_command(cast_cmd)
 
   // Compare raw bytes
@@ -162,8 +175,12 @@ pub fn cast_verify_eip1559_simple_transfer_test() {
     False -> Nil
     True -> {
       verify_eip1559(
-        0, 1_000_000_000_000_000_000, 21_000,
-        20_000_000_000, 1_000_000_000, 1,
+        0,
+        1_000_000_000_000_000_000,
+        21_000,
+        20_000_000_000,
+        1_000_000_000,
+        1,
       )
     }
   }
@@ -183,8 +200,12 @@ pub fn cast_verify_eip1559_high_nonce_test() {
     False -> Nil
     True -> {
       verify_eip1559(
-        500, 100_000_000_000_000_000, 21_000,
-        50_000_000_000, 2_000_000_000, 1,
+        500,
+        100_000_000_000_000_000,
+        21_000,
+        50_000_000_000,
+        2_000_000_000,
+        1,
       )
     }
   }
@@ -195,8 +216,12 @@ pub fn cast_verify_eip1559_sepolia_test() {
     False -> Nil
     True -> {
       verify_eip1559(
-        42, 500_000_000_000_000_000, 21_000,
-        30_000_000_000, 2_000_000_000, 11_155_111,
+        42,
+        500_000_000_000_000_000,
+        21_000,
+        30_000_000_000,
+        2_000_000_000,
+        11_155_111,
       )
     }
   }
@@ -207,8 +232,12 @@ pub fn cast_verify_eip1559_arbitrum_test() {
     False -> Nil
     True -> {
       verify_eip1559(
-        0, 1_000_000_000_000_000_000, 21_000,
-        1_000_000_000, 100_000_000, 42_161,
+        0,
+        1_000_000_000_000_000_000,
+        21_000,
+        1_000_000_000,
+        100_000_000,
+        42_161,
       )
     }
   }
@@ -218,10 +247,7 @@ pub fn cast_verify_eip1559_polygon_test() {
   case cast_available() {
     False -> Nil
     True -> {
-      verify_eip1559(
-        10, 0, 100_000,
-        100_000_000_000, 30_000_000_000, 137,
-      )
+      verify_eip1559(10, 0, 100_000, 100_000_000_000, 30_000_000_000, 137)
     }
   }
 }
@@ -231,8 +257,12 @@ pub fn cast_verify_eip1559_high_priority_fee_test() {
     False -> Nil
     True -> {
       verify_eip1559(
-        0, 50_000_000_000_000_000, 21_000,
-        100_000_000_000, 10_000_000_000, 1,
+        0,
+        50_000_000_000_000_000,
+        21_000,
+        100_000_000_000,
+        10_000_000_000,
+        1,
       )
     }
   }
@@ -242,10 +272,7 @@ pub fn cast_verify_eip1559_max_fee_equals_priority_test() {
   case cast_available() {
     False -> Nil
     True -> {
-      verify_eip1559(
-        0, 0, 21_000,
-        5_000_000_000, 5_000_000_000, 1,
-      )
+      verify_eip1559(0, 0, 21_000, 5_000_000_000, 5_000_000_000, 1)
     }
   }
 }
@@ -254,10 +281,7 @@ pub fn cast_verify_eip1559_large_gas_limit_test() {
   case cast_available() {
     False -> Nil
     True -> {
-      verify_eip1559(
-        1, 0, 500_000,
-        20_000_000_000, 1_000_000_000, 1,
-      )
+      verify_eip1559(1, 0, 500_000, 20_000_000_000, 1_000_000_000, 1)
     }
   }
 }
@@ -289,14 +313,22 @@ fn verify_eip1559(
   // Sign with cast
   let cast_cmd =
     "cast mktx"
-    <> " --private-key " <> test_private_key
-    <> " --chain " <> int.to_string(chain_id)
-    <> " --nonce " <> int.to_string(nonce)
-    <> " --gas-price " <> int.to_string(max_fee)
-    <> " --priority-gas-price " <> int.to_string(priority_fee)
-    <> " --gas-limit " <> int.to_string(gas_limit)
-    <> " --value " <> int.to_string(value)
-    <> " " <> recipient
+    <> " --private-key "
+    <> test_private_key
+    <> " --chain "
+    <> int.to_string(chain_id)
+    <> " --nonce "
+    <> int.to_string(nonce)
+    <> " --gas-price "
+    <> int.to_string(max_fee)
+    <> " --priority-gas-price "
+    <> int.to_string(priority_fee)
+    <> " --gas-limit "
+    <> int.to_string(gas_limit)
+    <> " --value "
+    <> int.to_string(value)
+    <> " "
+    <> recipient
   let cast_output = run_command(cast_cmd)
 
   // Compare raw bytes
