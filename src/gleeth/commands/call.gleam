@@ -32,15 +32,11 @@ pub fn execute(
   // Parse parameters
   use parsed_params <- result.try(parse_parameters(parameters))
 
-  // Build contract call
-  let contract_call =
-    contract.ContractCall(
-      function_name: function_call,
-      parameters: parsed_params,
-    )
-
   // Generate call data
-  use call_data <- result.try(contract.build_call_data(contract_call))
+  use call_data <- result.try(contract.build_call_data(
+    function_call,
+    parsed_params,
+  ))
 
   // Make the contract call
   use response <- result.try(methods.call_contract(
@@ -60,10 +56,13 @@ pub fn execute(
   Ok(Nil)
 }
 
-// Parse parameter strings into Parameter types
+// Parse parameter strings into ABI type/value pairs
 fn parse_parameters(
   param_strings: List(String),
-) -> Result(List(contract.Parameter), rpc_types.GleethError) {
+) -> Result(
+  List(#(abi_types.AbiType, abi_types.AbiValue)),
+  rpc_types.GleethError,
+) {
   list.try_map(param_strings, contract.parse_parameter)
 }
 

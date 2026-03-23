@@ -8,32 +8,12 @@ import gleeth/ethereum/abi/types as abi_types
 import gleeth/rpc/types as rpc_types
 import gleeth/utils/hex
 
-// Supported parameter types for contract calls (legacy API)
-pub type ParamType {
-  UInt256
-  Address
-  String
-  Bool
-  Bytes32
-}
-
-// Parameter with type and value
-pub type Parameter {
-  Parameter(param_type: ParamType, value: String)
-}
-
-// Contract function call data
-pub type ContractCall {
-  ContractCall(function_name: String, parameters: List(Parameter))
-}
-
 // Generate function selector using the ABI encoder
 pub fn generate_function_selector(
   function_name: String,
-  param_types: List(ParamType),
+  param_types: List(abi_types.AbiType),
 ) -> Result(String, rpc_types.GleethError) {
-  let abi_types = list.map(param_types, param_type_to_abi_type)
-  case abi_encode.function_selector(function_name, abi_types) {
+  case abi_encode.function_selector(function_name, param_types) {
     Ok(selector) -> Ok(hex.encode(selector))
     Error(err) -> Error(abi_error_to_gleeth_error(err))
   }
@@ -41,16 +21,12 @@ pub fn generate_function_selector(
 
 // Encode parameters for contract call using the ABI encoder
 pub fn encode_parameters(
-  parameters: List(Parameter),
+  parameters: List(#(abi_types.AbiType, abi_types.AbiValue)),
 ) -> Result(String, rpc_types.GleethError) {
   case parameters {
     [] -> Ok("")
     params -> {
-      use abi_pairs <- result.try(
-        list.try_map(params, param_to_abi_pair)
-        |> result.map_error(fn(e) { abi_error_to_gleeth_error(e) }),
-      )
-      case abi_encode.encode(abi_pairs) {
+      case abi_encode.encode(params) {
         Ok(encoded) -> Ok(string.lowercase(bit_array.base16_encode(encoded)))
         Error(err) -> Error(abi_error_to_gleeth_error(err))
       }
@@ -60,26 +36,17 @@ pub fn encode_parameters(
 
 // Build complete call data (function selector + encoded parameters)
 pub fn build_call_data(
-  contract_call: ContractCall,
+  function_name: String,
+  parameters: List(#(abi_types.AbiType, abi_types.AbiValue)),
 ) -> Result(String, rpc_types.GleethError) {
-  let abi_type_list =
-    list.map(contract_call.parameters, fn(p) {
-      param_type_to_abi_type(p.param_type)
-    })
+  let abi_type_list = list.map(parameters, fn(p) { p.0 })
 
-  use abi_pairs <- result.try(
-    list.try_map(contract_call.parameters, param_to_abi_pair)
-    |> result.map_error(fn(e) { abi_error_to_gleeth_error(e) }),
-  )
-
-  case
-    abi_encode.function_selector(contract_call.function_name, abi_type_list)
-  {
+  case abi_encode.function_selector(function_name, abi_type_list) {
     Ok(selector) -> {
-      case abi_pairs {
+      case parameters {
         [] -> Ok(hex.encode(selector))
         _ -> {
-          case abi_encode.encode(abi_pairs) {
+          case abi_encode.encode(parameters) {
             Ok(encoded) -> {
               let selector_hex =
                 string.lowercase(bit_array.base16_encode(selector))
@@ -96,52 +63,56 @@ pub fn build_call_data(
   }
 }
 
-// Parse parameter string into Parameter type
+// Parse parameter string into an ABI type/value pair
 // Format: "type:value" e.g., "address:0x1234..." or "uint256:1000"
 pub fn parse_parameter(
   param_str: String,
-) -> Result(Parameter, rpc_types.GleethError) {
+) -> Result(#(abi_types.AbiType, abi_types.AbiValue), rpc_types.GleethError) {
   case string.split(param_str, ":") {
     [type_str, value] -> {
-      use param_type <- result.try(parse_param_type(type_str))
-      Ok(Parameter(param_type: param_type, value: value))
+      use abi_type <- result.try(parse_abi_type(type_str))
+      use abi_value <- result.try(
+        string_to_abi_value(abi_type, value)
+        |> result.map_error(fn(e) { abi_error_to_gleeth_error(e) }),
+      )
+      Ok(#(abi_type, abi_value))
     }
     _ -> Error(rpc_types.ParseError("Parameter must be in format 'type:value'"))
   }
 }
 
 // ---------------------------------------------------------------------------
-// Internal: conversion between legacy ParamType and new ABI types
+// Internal: parsing and conversion helpers
 // ---------------------------------------------------------------------------
 
-fn param_type_to_abi_type(param_type: ParamType) -> abi_types.AbiType {
-  case param_type {
-    UInt256 -> abi_types.Uint(256)
-    Address -> abi_types.Address
-    String -> abi_types.String
-    Bool -> abi_types.Bool
-    Bytes32 -> abi_types.FixedBytes(32)
+fn parse_abi_type(
+  type_str: String,
+) -> Result(abi_types.AbiType, rpc_types.GleethError) {
+  case string.lowercase(type_str) {
+    "uint256" | "uint" -> Ok(abi_types.Uint(256))
+    "address" -> Ok(abi_types.Address)
+    "string" -> Ok(abi_types.String)
+    "bool" | "boolean" -> Ok(abi_types.Bool)
+    "bytes32" -> Ok(abi_types.FixedBytes(32))
+    _ -> Error(rpc_types.ParseError("Unsupported parameter type: " <> type_str))
   }
 }
 
-fn param_to_abi_pair(
-  param: Parameter,
-) -> Result(#(abi_types.AbiType, abi_types.AbiValue), abi_types.AbiError) {
-  let abi_type = param_type_to_abi_type(param.param_type)
-  use abi_value <- result.try(string_to_abi_value(param.param_type, param.value))
-  Ok(#(abi_type, abi_value))
-}
-
 fn string_to_abi_value(
-  param_type: ParamType,
+  abi_type: abi_types.AbiType,
   value: String,
 ) -> Result(abi_types.AbiValue, abi_types.AbiError) {
-  case param_type {
-    UInt256 -> parse_uint_value(value)
-    Address -> Ok(abi_types.AddressValue(value))
-    String -> Ok(abi_types.StringValue(value))
-    Bool -> parse_bool_value(value)
-    Bytes32 -> parse_bytes32_value(value)
+  case abi_type {
+    abi_types.Uint(_) -> parse_uint_value(value)
+    abi_types.Address -> Ok(abi_types.AddressValue(value))
+    abi_types.String -> Ok(abi_types.StringValue(value))
+    abi_types.Bool -> parse_bool_value(value)
+    abi_types.FixedBytes(_) -> parse_bytes32_value(value)
+    _ ->
+      Error(abi_types.EncodeError(
+        "Unsupported ABI type for CLI parsing: "
+        <> abi_types.to_string(abi_type),
+      ))
   }
 }
 
@@ -205,19 +176,6 @@ fn make_zero_bytes_acc(n: Int, acc: BitArray) -> BitArray {
   case n <= 0 {
     True -> acc
     False -> make_zero_bytes_acc(n - 1, <<acc:bits, 0:8>>)
-  }
-}
-
-fn parse_param_type(
-  type_str: String,
-) -> Result(ParamType, rpc_types.GleethError) {
-  case string.lowercase(type_str) {
-    "uint256" | "uint" -> Ok(UInt256)
-    "address" -> Ok(Address)
-    "string" -> Ok(String)
-    "bool" | "boolean" -> Ok(Bool)
-    "bytes32" -> Ok(Bytes32)
-    _ -> Error(rpc_types.ParseError("Unsupported parameter type: " <> type_str))
   }
 }
 
