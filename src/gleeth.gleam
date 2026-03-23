@@ -71,15 +71,8 @@ fn execute_command(command: cli.Command, p: provider.Provider) -> Nil {
         p,
         send.SendArgs(to, value, private_key, gas_limit, data, legacy),
       )
-    cli.Wallet(_) -> {
-      // This case should not occur due to earlier handling
-      formatting.print_error("Wallet command should be handled separately")
-      Ok(Nil)
-    }
-    cli.Help -> {
-      cli.show_help()
-      Ok(Nil)
-    }
+    // Wallet and Help are handled in main() before execute_command is called
+    cli.Wallet(_) | cli.Help -> Ok(Nil)
   }
 
   case result {
