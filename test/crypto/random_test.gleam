@@ -2,6 +2,7 @@ import gleam/bit_array
 import gleam/list
 import gleeth/crypto/random
 import gleeth/crypto/secp256k1
+import gleeth/crypto/wallet
 import gleeunit
 import gleeunit/should
 
@@ -109,11 +110,9 @@ pub fn generate_private_key_creates_valid_wallets_test() {
   let assert Ok(private_key) = random.generate_private_key()
   let private_key_bytes = secp256k1.private_key_to_bytes(private_key)
 
-  // Import wallet module and create wallet
-  case wallet_from_private_key_bytes(private_key_bytes) {
-    Ok(wallet) -> {
-      // Verify wallet components are valid
-      let address = wallet_get_address(wallet)
+  case wallet.from_private_key_bytes(private_key_bytes) {
+    Ok(w) -> {
+      let address = wallet.get_address(w)
       // Address should be 42 characters (0x + 40 hex chars)
       address
       |> bit_array.from_string()
@@ -299,11 +298,11 @@ pub fn integration_random_to_wallet_test() {
   let private_key_bytes = secp256k1.private_key_to_bytes(private_key)
 
   // Create wallet from the generated private key
-  let assert Ok(wallet) = wallet_from_private_key_bytes(private_key_bytes)
+  let assert Ok(w) = wallet.from_private_key_bytes(private_key_bytes)
 
   // Test signing a message with the wallet
   let test_message = "Hello, secure random world!"
-  case wallet_sign_personal_message(wallet, test_message) {
+  case wallet.sign_personal_message(w, test_message) {
     Ok(signature) -> {
       // Verify we can get signature components
       let #(v, r, s) = secp256k1.signature_to_vrs(signature)
@@ -352,40 +351,6 @@ fn stress_generate_keys(remaining: Int, generated: Int) -> Nil {
 // Helper Functions
 // =============================================================================
 
-// Mock wallet functions since we can't import wallet directly
-// These would be replaced with actual wallet imports in practice
-fn wallet_from_private_key_bytes(bytes: BitArray) -> Result(MockWallet, String) {
-  case secp256k1.private_key_from_bytes(bytes) {
-    Ok(_) -> Ok(MockWallet)
-    Error(msg) -> Error(msg)
-  }
-}
-
-fn wallet_get_address(_wallet: MockWallet) -> String {
-  "0x742d35cc6648c72Fec4ee14c9e5EE4b285Dcf3c1"
-}
-
-fn wallet_sign_personal_message(
-  _wallet: MockWallet,
-  _message: String,
-) -> Result(secp256k1.Signature, String) {
-  // Mock signature for testing
-  let r = <<
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-    22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
-  >>
-  let s = <<
-    32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14,
-    13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
-  >>
-  Ok(secp256k1.Signature(r: r, s: s, recovery_id: 0))
-}
-
-type MockWallet {
-  MockWallet
-}
-
-// Helper functions for testing
 fn test_each_length(lengths: List(Int)) -> Nil {
   case lengths {
     [] -> Nil
