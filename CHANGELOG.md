@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.1.0 - 2026-03-23
+
+### Features
+
+- **Transaction decoder** - decode raw legacy and EIP-1559 transactions back into typed structs, with auto-detection from the type prefix
+- **Calldata decoding** - decode calldata back to function name and typed arguments given an ABI or function signature
+- **Revert reason decoding** - decode `Error(string)`, `Panic(uint256)`, and custom error selectors
+- **EIP-191 personal message recovery** - `recover_personal_message` and `verify_personal_message` for Sign-In with Ethereum and off-chain signature verification
+- **Signature parsing** - `signature_from_hex` parses 65-byte hex signatures with v=0/1/27/28 normalization
+- **Function output decoding** - `decode_function_output` for decoding `eth_call` return values
+- **Wei conversion module** - `wei.from_ether`, `wei.to_ether`, `wei.from_gwei`, `wei.to_gwei`, `wei.from_int`, `wei.to_int` for converting between human-readable amounts and hex strings
+- **EIP-55 checksummed addresses** - `address.checksum` and `address.is_valid_checksum` per the EIP-55 specification
+
+### Testing
+
+- 18 edge case signing tests verified against Foundry `cast mktx` (zero value, contract creation, large chain IDs, multi-entry access lists)
+- 22 transaction decoder round-trip tests
+- Property-based fuzz testing with `qcheck` (800+ random transactions per run)
+- 18 cross-implementation tests comparing gleeth output byte-for-byte against Foundry `cast`
+- 8 integration tests against anvil (contract deployment, state changes, error paths, multi-tx sequences)
+- 19 RPC response edge case tests (malformed JSON, null fields, type mismatches)
+
 ## 1.0.0 - 2026-03-19
 
 Initial release.
