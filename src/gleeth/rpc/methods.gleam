@@ -6,6 +6,8 @@
 //// with `GleethError` on failure.
 
 import gleam/dynamic/decode
+import gleam/erlang/process
+import gleam/int
 import gleam/json
 import gleeth/ethereum/types as eth_types
 import gleeth/provider.{type Provider}
@@ -363,6 +365,59 @@ pub fn get_logs(
     [filter_object],
     decode.list(log_decoder()),
   )
+}
+
+/// Poll for a transaction receipt with exponential backoff.
+/// Default timeout: 60 seconds. Backoff: 1s, 2s, 4s, 4s, 4s, ...
+pub fn wait_for_receipt(
+  provider: Provider,
+  tx_hash: String,
+) -> Result(eth_types.TransactionReceipt, rpc_types.GleethError) {
+  wait_for_receipt_with_timeout(provider, tx_hash, 60_000)
+}
+
+/// Poll for a transaction receipt with a custom timeout in milliseconds.
+/// Uses exponential backoff: 1s, 2s, 4s, 4s, 4s, ... (capped at 4s).
+pub fn wait_for_receipt_with_timeout(
+  provider: Provider,
+  tx_hash: String,
+  timeout_ms: Int,
+) -> Result(eth_types.TransactionReceipt, rpc_types.GleethError) {
+  poll_receipt(provider, tx_hash, timeout_ms, 0, 1000)
+}
+
+fn poll_receipt(
+  provider: Provider,
+  tx_hash: String,
+  timeout_ms: Int,
+  elapsed_ms: Int,
+  backoff_ms: Int,
+) -> Result(eth_types.TransactionReceipt, rpc_types.GleethError) {
+  case elapsed_ms >= timeout_ms {
+    True ->
+      Error(rpc_types.ParseError(
+        "Receipt not found within " <> int.to_string(timeout_ms) <> "ms",
+      ))
+    False -> {
+      case get_transaction_receipt(provider, tx_hash) {
+        Ok(receipt) -> Ok(receipt)
+        Error(_) -> {
+          process.sleep(backoff_ms)
+          let next_backoff = case backoff_ms * 2 {
+            doubled if doubled > 4000 -> 4000
+            doubled -> doubled
+          }
+          poll_receipt(
+            provider,
+            tx_hash,
+            timeout_ms,
+            elapsed_ms + backoff_ms,
+            next_backoff,
+          )
+        }
+      }
+    }
+  }
 }
 
 // Decode a string field, treating null as empty string
