@@ -339,6 +339,20 @@ pub fn decode_function_output(
   decode(type_list, result_bytes)
 }
 
+/// Decode the return value of a function using a parsed ABI entry.
+/// Extracts output types from the FunctionEntry and decodes the hex data.
+pub fn decode_outputs(
+  function_entry: json.AbiEntry,
+  result_hex: String,
+) -> Result(List(AbiValue), AbiError) {
+  let output_type_list = json.output_types(function_entry)
+  use result_bytes <- result.try(
+    hex_utils.decode(result_hex)
+    |> result.map_error(fn(_) { types.DecodeError("Invalid result hex") }),
+  )
+  decode(output_type_list, result_bytes)
+}
+
 // =============================================================================
 // Revert reason decoding
 // =============================================================================
