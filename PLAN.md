@@ -23,89 +23,26 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - RLP encoding/decoding per Yellow Paper spec
 - Unified error type: `GleethError` with domain-specific wrapper variants
 - CLI for all read operations + wallet + send
-- 445 tests including fuzz testing (qcheck), cross-implementation verification (cast), and anvil integration
+- Fuzz testing (qcheck), cross-implementation verification (cast), and anvil integration tests
 - CI workflow: Gleam 1.14.0, OTP 28, Elixir 1.19
-
-### Releases
-
-- **v1.0.0** (2026-03-19): initial release - signing, RPC, ABI, wallet, CLI
-- **v1.1.0** (2026-03-23): transaction decoder, calldata/revert decoding, EIP-191 recovery, wei conversions, EIP-55 addresses, 160 new tests
 
 ## Completed Phases
 
-Phases 1-5 are complete. See git history for details.
+Phases 1-8 are complete. See git history and CHANGELOG.md for details.
 
 - **Phase 1**: CI fixes
-- **Phase 2**: RLP encoding/decoding (47 tests)
+- **Phase 2**: RLP encoding/decoding
 - **Phase 3**: Transaction signing and broadcasting (legacy + EIP-1559)
-- **Phase 4**: ABI system (108 tests)
+- **Phase 4**: ABI system
 - **Phase 5**: Provider abstraction and error consolidation
-
-## Phase 6: Code cleanup
-
-Small items to keep the codebase clean.
-
-### 6.1 Remove legacy contract.gleam ParamType shim
-
-`contract.gleam` still has its own `ParamType` enum (UInt256, Address, String,
-Bool, Bytes32) that just wraps the ABI type system. The CLI `call` command
-should use ABI types directly. GitHub issue #1.
-
-### 6.2 Remove unreachable cases in execute_command
-
-`gleeth.gleam` `execute_command` has `Wallet` and `Help` branches that are
-unreachable. GitHub issue #2.
-
-### 6.3 Reduce public API surface
-
-Internal helpers exposed as `pub fn` in `cli.gleam` and `abi/encode.gleam`.
-GitHub issue #3.
-
-### 6.4 Fix mock wallet in random_test.gleam
-
-Mock returns hardcoded values, doesn't test real wallet integration.
-GitHub issue #4.
-
-### 6.5 CI Node.js deprecation
-
-Update GitHub Actions for Node.js 24 (deadline June 2026). GitHub issue #5.
+- **Phase 6**: Code cleanup (legacy ParamType removed, unreachable cases, mock wallet, CI updated)
+- **Phase 8**: Ergonomics (receipt polling, gas estimation, transaction builder, nonce manager, sender recovery, decode_outputs)
 
 ## Phase 7: Architecture - Library/CLI split
 
 Split `gleeth` into library-only package and separate `gleeth_cli` package.
 Library consumers currently pull in CLI dependencies they don't need.
 GitHub issues #17, #18.
-
-## Phase 8: Ergonomics and developer experience
-
-### 8.1 Receipt polling - GitHub issue #13
-
-`methods.wait_for_receipt(provider, tx_hash, timeout_ms)` with exponential
-backoff.
-
-### 8.2 Gas estimation helpers - GitHub issue #14
-
-Auto-populate gas limit, priority fee, and max fee from the network in a
-single call.
-
-### 8.3 Type-safe transaction builders - GitHub issue #15
-
-Builder pattern: `transaction.build() |> to("0x...") |> value_ether("1.5") |> sign(wallet)`.
-Depends on wei module (done).
-
-### 8.4 Nonce manager - GitHub issue #16
-
-Track pending nonces locally for sending multiple transactions without waiting.
-
-### 8.5 Sender recovery from signed/RPC transactions - GitHub issue #34
-
-Recover signer address from raw signed transactions and from RPC Transaction
-type. Includes EIP-155 v-value handling for legacy transactions.
-
-### 8.6 Function return value decode wrapper - GitHub issue #36
-
-Convenient `decode_outputs(abi_entry, hex_data)` matching the ergonomics of
-`encode_call`.
 
 ## Phase 9: Remaining testing
 
