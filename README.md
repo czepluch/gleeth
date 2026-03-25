@@ -37,16 +37,14 @@ pub fn main() {
 }
 ```
 
-### Sign and send a transaction
+### Sign and send a transaction (builder API)
 
-All numeric values (wei amounts, gas, nonce) use `0x`-prefixed hex strings,
-matching the Ethereum JSON-RPC format. Values returned by `methods.get_gas_price`,
-`methods.get_transaction_count`, etc. can be passed directly to transaction
-builders.
+The builder API accepts human-readable values - no manual hex conversion needed.
 
 ```gleam
 import gleeth/crypto/transaction
 import gleeth/crypto/wallet
+import gleeth/gas
 import gleeth/provider
 import gleeth/rpc/methods
 
@@ -54,20 +52,43 @@ pub fn main() {
   let assert Ok(p) = provider.new("http://localhost:8545")
   let assert Ok(w) = wallet.from_private_key_hex("0xac09...")
 
-  let sender = wallet.get_address(w)
+  // Build and sign in a pipeline
+  let assert Ok(signed) =
+    transaction.build_legacy()
+    |> transaction.legacy_to("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
+    |> transaction.legacy_value_ether("1.5")
+    |> transaction.legacy_gas_limit_int(21_000)
+    |> transaction.legacy_gas_price_gwei("20.0")
+    |> transaction.legacy_nonce_int(0)
+    |> transaction.legacy_chain(1)
+    |> transaction.sign_legacy(w)
 
-  // These return hex strings that can be passed directly to create_legacy_transaction
+  // Broadcast and wait for receipt
+  let assert Ok(tx_hash) = methods.send_raw_transaction(p, signed.raw_transaction)
+  let assert Ok(receipt) = methods.wait_for_receipt(p, tx_hash)
+}
+```
+
+For lower-level control, use `create_legacy_transaction` with hex strings directly:
+
+```gleam
+pub fn main() {
+  let assert Ok(p) = provider.new("http://localhost:8545")
+  let assert Ok(w) = wallet.from_private_key_hex("0xac09...")
+
+  // Gas estimation in one call
+  let sender = wallet.get_address(w)
+  let assert Ok(est) = gas.estimate_legacy(p, sender, "0x7099...", "0xde0b6b3a7640000", "0x")
   let assert Ok(nonce) = methods.get_transaction_count(p, sender, "pending")
-  let assert Ok(gas_price) = methods.get_gas_price(p)
 
   let assert Ok(tx) = transaction.create_legacy_transaction(
     "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    "0xde0b6b3a7640000",  // 1 ETH = 1e18 wei in hex
-    "0x5208",              // 21000 gas in hex
-    gas_price,             // from RPC, already hex
-    nonce,                 // from RPC, already hex
+    "0xde0b6b3a7640000",  // 1 ETH in wei hex
+    est.gas_limit,         // from estimation
+    est.gas_price,         // from estimation
+    nonce,                 // from RPC
     "0x",                  // no calldata
-    1,                     // mainnet chain ID (integer, not hex)
+    1,                     // mainnet
   )
 
   let assert Ok(signed) = transaction.sign_transaction(tx, w)
@@ -114,10 +135,18 @@ pub fn main() {
 
 ## Features
 
+- **Transaction builder** - pipeline API with human-readable values (`value_ether("1.5")`, `gas_price_gwei("20.0")`)
+- **Transaction signing** - Legacy (Type 0) and EIP-1559 (Type 2) with EIP-155 replay protection
+- **Transaction decoding** - decode raw transactions, recover sender address
+- **Gas estimation** - `gas.estimate_legacy` and `gas.estimate_eip1559` in a single call
+- **Receipt polling** - `wait_for_receipt` with exponential backoff
+- **Nonce manager** - local nonce tracking for multi-transaction sequences
+- **Wei conversions** - `wei.from_ether("1.5")`, `wei.to_gwei(hex)`, `wei.from_int(21000)`
 - **JSON-RPC client** - block number, balance, call, code, estimate gas, storage, logs, transactions, receipts, fee history
 - **Provider abstraction** - opaque type with URL validation and chain ID caching
-- **Transaction signing** - Legacy (Type 0) and EIP-1559 (Type 2) with EIP-155 replay protection
-- **ABI system** - full encoding/decoding for all Solidity types, JSON ABI parsing, event log decoding
+- **ABI system** - full encoding/decoding for all Solidity types, calldata decoding, revert reason decoding, JSON ABI parsing, event log decoding
+- **EIP-55 addresses** - `address.checksum` and `address.is_valid_checksum`
+- **EIP-191 signing** - `sign_personal_message`, `recover_personal_message`, `verify_personal_message`
 - **Wallet management** - key generation, message signing, signature recovery
 - **Crypto primitives** - keccak256 (via ex_keccak NIF), secp256k1 (via ex_secp256k1 NIF)
 - **RLP encoding/decoding** - per Ethereum Yellow Paper spec
@@ -146,7 +175,7 @@ Set `GLEETH_RPC_URL` to avoid passing `--rpc-url` every time.
 
 ```sh
 gleam build          # Compile
-gleam test           # Run all 285 tests
+gleam test           # Run all 445 tests
 gleam format         # Format code
 gleam docs build     # Generate documentation
 ```
