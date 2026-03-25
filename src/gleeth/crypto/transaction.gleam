@@ -1,12 +1,15 @@
 import gleam/bit_array
 import gleam/int
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import gleeth/crypto/keccak
+import gleeth/crypto/secp256k1
 import gleeth/crypto/wallet
 import gleeth/encoding/rlp
 import gleeth/utils/hex
+import gleeth/wei
 
 /// Represents an Ethereum transaction before signing
 pub type UnsignedTransaction {
@@ -111,6 +114,359 @@ pub type TransactionError {
   InvalidData(String)
   SigningFailed(String)
   EncodingFailed(String)
+}
+
+// =============================================================================
+// Builder Types
+// =============================================================================
+
+/// A builder for constructing legacy (Type 0) transactions step by step.
+pub type LegacyBuilder {
+  LegacyBuilder(
+    to: Option(String),
+    value: Option(String),
+    gas_limit: Option(String),
+    gas_price: Option(String),
+    nonce: Option(String),
+    data: Option(String),
+    chain_id: Option(Int),
+  )
+}
+
+/// A builder for constructing EIP-1559 (Type 2) transactions step by step.
+pub type Eip1559Builder {
+  Eip1559Builder(
+    to: Option(String),
+    value: Option(String),
+    gas_limit: Option(String),
+    max_fee_per_gas: Option(String),
+    max_priority_fee_per_gas: Option(String),
+    nonce: Option(String),
+    data: Option(String),
+    chain_id: Option(Int),
+    access_list: List(AccessListEntry),
+  )
+}
+
+/// Create a new empty legacy transaction builder.
+pub fn build_legacy() -> LegacyBuilder {
+  LegacyBuilder(
+    to: None,
+    value: None,
+    gas_limit: None,
+    gas_price: None,
+    nonce: None,
+    data: None,
+    chain_id: None,
+  )
+}
+
+/// Create a new empty EIP-1559 transaction builder.
+pub fn build_eip1559() -> Eip1559Builder {
+  Eip1559Builder(
+    to: None,
+    value: None,
+    gas_limit: None,
+    max_fee_per_gas: None,
+    max_priority_fee_per_gas: None,
+    nonce: None,
+    data: None,
+    chain_id: None,
+    access_list: [],
+  )
+}
+
+// =============================================================================
+// Legacy Builder Setters
+// =============================================================================
+
+/// Set the recipient address on a legacy builder.
+pub fn legacy_to(builder: LegacyBuilder, address: String) -> LegacyBuilder {
+  LegacyBuilder(..builder, to: Some(address))
+}
+
+/// Set the value as a raw hex string on a legacy builder.
+pub fn legacy_value_hex(
+  builder: LegacyBuilder,
+  hex_val: String,
+) -> LegacyBuilder {
+  LegacyBuilder(..builder, value: Some(hex_val))
+}
+
+/// Set the value from an ether amount string on a legacy builder.
+/// Converts ether to wei hex using the wei module.
+pub fn legacy_value_ether(
+  builder: LegacyBuilder,
+  ether_str: String,
+) -> LegacyBuilder {
+  case wei.from_ether(ether_str) {
+    Ok(hex_val) -> LegacyBuilder(..builder, value: Some(hex_val))
+    Error(_) -> builder
+  }
+}
+
+/// Set the gas limit from an integer on a legacy builder.
+pub fn legacy_gas_limit_int(builder: LegacyBuilder, limit: Int) -> LegacyBuilder {
+  LegacyBuilder(..builder, gas_limit: Some(wei.from_int(limit)))
+}
+
+/// Set the gas limit as a raw hex string on a legacy builder.
+pub fn legacy_gas_limit_hex(
+  builder: LegacyBuilder,
+  hex_val: String,
+) -> LegacyBuilder {
+  LegacyBuilder(..builder, gas_limit: Some(hex_val))
+}
+
+/// Set the gas price as a raw hex string on a legacy builder.
+pub fn legacy_gas_price_hex(
+  builder: LegacyBuilder,
+  hex_val: String,
+) -> LegacyBuilder {
+  LegacyBuilder(..builder, gas_price: Some(hex_val))
+}
+
+/// Set the gas price from a gwei amount string on a legacy builder.
+pub fn legacy_gas_price_gwei(
+  builder: LegacyBuilder,
+  gwei_str: String,
+) -> LegacyBuilder {
+  case wei.from_gwei(gwei_str) {
+    Ok(hex_val) -> LegacyBuilder(..builder, gas_price: Some(hex_val))
+    Error(_) -> builder
+  }
+}
+
+/// Set the nonce from an integer on a legacy builder.
+pub fn legacy_nonce_int(builder: LegacyBuilder, n: Int) -> LegacyBuilder {
+  LegacyBuilder(..builder, nonce: Some(wei.from_int(n)))
+}
+
+/// Set the nonce as a raw hex string on a legacy builder.
+pub fn legacy_nonce_hex(
+  builder: LegacyBuilder,
+  hex_val: String,
+) -> LegacyBuilder {
+  LegacyBuilder(..builder, nonce: Some(hex_val))
+}
+
+/// Set the chain ID on a legacy builder.
+pub fn legacy_chain(builder: LegacyBuilder, id: Int) -> LegacyBuilder {
+  LegacyBuilder(..builder, chain_id: Some(id))
+}
+
+/// Set the calldata as a raw hex string on a legacy builder.
+pub fn legacy_data_hex(builder: LegacyBuilder, hex_val: String) -> LegacyBuilder {
+  LegacyBuilder(..builder, data: Some(hex_val))
+}
+
+// =============================================================================
+// EIP-1559 Builder Setters
+// =============================================================================
+
+/// Set the recipient address on an EIP-1559 builder.
+pub fn eip1559_to(builder: Eip1559Builder, address: String) -> Eip1559Builder {
+  Eip1559Builder(..builder, to: Some(address))
+}
+
+/// Set the value as a raw hex string on an EIP-1559 builder.
+pub fn eip1559_value_hex(
+  builder: Eip1559Builder,
+  hex_val: String,
+) -> Eip1559Builder {
+  Eip1559Builder(..builder, value: Some(hex_val))
+}
+
+/// Set the value from an ether amount string on an EIP-1559 builder.
+pub fn eip1559_value_ether(
+  builder: Eip1559Builder,
+  ether_str: String,
+) -> Eip1559Builder {
+  case wei.from_ether(ether_str) {
+    Ok(hex_val) -> Eip1559Builder(..builder, value: Some(hex_val))
+    Error(_) -> builder
+  }
+}
+
+/// Set the gas limit from an integer on an EIP-1559 builder.
+pub fn eip1559_gas_limit_int(
+  builder: Eip1559Builder,
+  limit: Int,
+) -> Eip1559Builder {
+  Eip1559Builder(..builder, gas_limit: Some(wei.from_int(limit)))
+}
+
+/// Set the gas limit as a raw hex string on an EIP-1559 builder.
+pub fn eip1559_gas_limit_hex(
+  builder: Eip1559Builder,
+  hex_val: String,
+) -> Eip1559Builder {
+  Eip1559Builder(..builder, gas_limit: Some(hex_val))
+}
+
+/// Set the max fee per gas as a raw hex string on an EIP-1559 builder.
+pub fn eip1559_max_fee_hex(
+  builder: Eip1559Builder,
+  hex_val: String,
+) -> Eip1559Builder {
+  Eip1559Builder(..builder, max_fee_per_gas: Some(hex_val))
+}
+
+/// Set the max fee per gas from a gwei amount on an EIP-1559 builder.
+pub fn eip1559_max_fee_gwei(
+  builder: Eip1559Builder,
+  gwei_str: String,
+) -> Eip1559Builder {
+  case wei.from_gwei(gwei_str) {
+    Ok(hex_val) -> Eip1559Builder(..builder, max_fee_per_gas: Some(hex_val))
+    Error(_) -> builder
+  }
+}
+
+/// Set the max priority fee per gas as a raw hex string on an EIP-1559 builder.
+pub fn eip1559_max_priority_fee_hex(
+  builder: Eip1559Builder,
+  hex_val: String,
+) -> Eip1559Builder {
+  Eip1559Builder(..builder, max_priority_fee_per_gas: Some(hex_val))
+}
+
+/// Set the max priority fee per gas from a gwei amount on an EIP-1559 builder.
+pub fn eip1559_max_priority_fee_gwei(
+  builder: Eip1559Builder,
+  gwei_str: String,
+) -> Eip1559Builder {
+  case wei.from_gwei(gwei_str) {
+    Ok(hex_val) ->
+      Eip1559Builder(..builder, max_priority_fee_per_gas: Some(hex_val))
+    Error(_) -> builder
+  }
+}
+
+/// Set the nonce from an integer on an EIP-1559 builder.
+pub fn eip1559_nonce_int(builder: Eip1559Builder, n: Int) -> Eip1559Builder {
+  Eip1559Builder(..builder, nonce: Some(wei.from_int(n)))
+}
+
+/// Set the nonce as a raw hex string on an EIP-1559 builder.
+pub fn eip1559_nonce_hex(
+  builder: Eip1559Builder,
+  hex_val: String,
+) -> Eip1559Builder {
+  Eip1559Builder(..builder, nonce: Some(hex_val))
+}
+
+/// Set the chain ID on an EIP-1559 builder.
+pub fn eip1559_chain(builder: Eip1559Builder, id: Int) -> Eip1559Builder {
+  Eip1559Builder(..builder, chain_id: Some(id))
+}
+
+/// Set the calldata as a raw hex string on an EIP-1559 builder.
+pub fn eip1559_data_hex(
+  builder: Eip1559Builder,
+  hex_val: String,
+) -> Eip1559Builder {
+  Eip1559Builder(..builder, data: Some(hex_val))
+}
+
+/// Set the access list on an EIP-1559 builder.
+pub fn eip1559_access_list(
+  builder: Eip1559Builder,
+  entries: List(AccessListEntry),
+) -> Eip1559Builder {
+  Eip1559Builder(..builder, access_list: entries)
+}
+
+// =============================================================================
+// Builder Sign Functions
+// =============================================================================
+
+/// Validate and sign a legacy builder, producing a SignedTransaction.
+/// Returns an error if required fields (to, value, gas_limit, gas_price,
+/// nonce, chain_id) are missing.
+pub fn sign_legacy(
+  builder: LegacyBuilder,
+  w: wallet.Wallet,
+) -> Result(SignedTransaction, TransactionError) {
+  use to_val <- result.try(require_option(builder.to, "to"))
+  use value_val <- result.try(require_option(builder.value, "value"))
+  use gas_limit_val <- result.try(require_option(builder.gas_limit, "gas_limit"))
+  use gas_price_val <- result.try(require_option(builder.gas_price, "gas_price"))
+  use nonce_val <- result.try(require_option(builder.nonce, "nonce"))
+  use chain_id_val <- result.try(require_option_int(
+    builder.chain_id,
+    "chain_id",
+  ))
+  let data_val = option.unwrap(builder.data, "0x")
+
+  use tx <- result.try(create_legacy_transaction(
+    to_val,
+    value_val,
+    gas_limit_val,
+    gas_price_val,
+    nonce_val,
+    data_val,
+    chain_id_val,
+  ))
+  sign_transaction(tx, w)
+}
+
+/// Validate and sign an EIP-1559 builder, producing a SignedEip1559Transaction.
+/// Returns an error if required fields are missing.
+pub fn sign_eip1559(
+  builder: Eip1559Builder,
+  w: wallet.Wallet,
+) -> Result(SignedEip1559Transaction, TransactionError) {
+  use to_val <- result.try(require_option(builder.to, "to"))
+  use value_val <- result.try(require_option(builder.value, "value"))
+  use gas_limit_val <- result.try(require_option(builder.gas_limit, "gas_limit"))
+  use max_fee_val <- result.try(require_option(
+    builder.max_fee_per_gas,
+    "max_fee_per_gas",
+  ))
+  use max_priority_fee_val <- result.try(require_option(
+    builder.max_priority_fee_per_gas,
+    "max_priority_fee_per_gas",
+  ))
+  use nonce_val <- result.try(require_option(builder.nonce, "nonce"))
+  use chain_id_val <- result.try(require_option_int(
+    builder.chain_id,
+    "chain_id",
+  ))
+  let data_val = option.unwrap(builder.data, "0x")
+
+  use tx <- result.try(create_eip1559_transaction(
+    to_val,
+    value_val,
+    gas_limit_val,
+    max_fee_val,
+    max_priority_fee_val,
+    nonce_val,
+    data_val,
+    chain_id_val,
+    builder.access_list,
+  ))
+  sign_eip1559_transaction(tx, w)
+}
+
+fn require_option(
+  opt: Option(String),
+  field_name: String,
+) -> Result(String, TransactionError) {
+  case opt {
+    Some(val) -> Ok(val)
+    None -> Error(InvalidData("Missing required field: " <> field_name))
+  }
+}
+
+fn require_option_int(
+  opt: Option(Int),
+  field_name: String,
+) -> Result(Int, TransactionError) {
+  case opt {
+    Some(val) -> Ok(val)
+    None -> Error(InvalidData("Missing required field: " <> field_name))
+  }
 }
 
 // =============================================================================
@@ -579,6 +935,115 @@ fn normalize_hex_data(data: String) -> String {
     "0x" -> "0x"
     _ -> normalize_hex(data)
   }
+}
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
+
+// =============================================================================
+// Sender Recovery
+// =============================================================================
+
+/// Recover the sender address from a signed legacy transaction.
+/// Reconstructs the EIP-155 signing hash and uses ECDSA recovery.
+pub fn recover_sender(
+  signed: SignedTransaction,
+) -> Result(String, TransactionError) {
+  // Reconstruct the unsigned transaction for hashing
+  let unsigned =
+    UnsignedTransaction(
+      to: signed.to,
+      value: signed.value,
+      gas_limit: signed.gas_limit,
+      gas_price: signed.gas_price,
+      nonce: signed.nonce,
+      data: signed.data,
+      chain_id: signed.chain_id,
+    )
+  let signing_hash = create_signing_hash(unsigned)
+
+  // Parse v to get recovery_id: recovery_id = (v - 2 * chain_id - 35)
+  use v_int <- result.try(
+    hex.to_int(signed.v)
+    |> result.map_error(fn(_) {
+      SigningFailed("Failed to parse v value: " <> signed.v)
+    }),
+  )
+  let recovery_id = v_int - 2 * signed.chain_id - 35
+
+  // Decode r and s from hex to BitArray
+  use r_bytes <- result.try(
+    hex.decode(signed.r)
+    |> result.map_error(fn(_) {
+      SigningFailed("Failed to decode r value: " <> signed.r)
+    }),
+  )
+  use s_bytes <- result.try(
+    hex.decode(signed.s)
+    |> result.map_error(fn(_) {
+      SigningFailed("Failed to decode s value: " <> signed.s)
+    }),
+  )
+
+  let signature =
+    secp256k1.Signature(r: r_bytes, s: s_bytes, recovery_id: recovery_id)
+  use address <- result.try(
+    secp256k1.recover_address(signing_hash, signature)
+    |> result.map_error(fn(msg) { SigningFailed("Recovery failed: " <> msg) }),
+  )
+  Ok(secp256k1.address_to_string(address))
+}
+
+/// Recover the sender address from a signed EIP-1559 transaction.
+/// For EIP-1559, v is directly the recovery_id (0 or 1).
+pub fn recover_sender_eip1559(
+  signed: SignedEip1559Transaction,
+) -> Result(String, TransactionError) {
+  // Reconstruct the unsigned EIP-1559 transaction for hashing
+  let unsigned =
+    Eip1559Transaction(
+      to: signed.to,
+      value: signed.value,
+      gas_limit: signed.gas_limit,
+      max_fee_per_gas: signed.max_fee_per_gas,
+      max_priority_fee_per_gas: signed.max_priority_fee_per_gas,
+      nonce: signed.nonce,
+      data: signed.data,
+      chain_id: signed.chain_id,
+      access_list: signed.access_list,
+    )
+  let signing_hash = create_eip1559_signing_hash(unsigned)
+
+  // For EIP-1559, v is directly the recovery_id (0 or 1)
+  use v_int <- result.try(
+    hex.to_int(signed.v)
+    |> result.map_error(fn(_) {
+      SigningFailed("Failed to parse v value: " <> signed.v)
+    }),
+  )
+
+  // Decode r and s from hex to BitArray
+  use r_bytes <- result.try(
+    hex.decode(signed.r)
+    |> result.map_error(fn(_) {
+      SigningFailed("Failed to decode r value: " <> signed.r)
+    }),
+  )
+  use s_bytes <- result.try(
+    hex.decode(signed.s)
+    |> result.map_error(fn(_) {
+      SigningFailed("Failed to decode s value: " <> signed.s)
+    }),
+  )
+
+  let signature =
+    secp256k1.Signature(r: r_bytes, s: s_bytes, recovery_id: v_int)
+  use address <- result.try(
+    secp256k1.recover_address(signing_hash, signature)
+    |> result.map_error(fn(msg) { SigningFailed("Recovery failed: " <> msg) }),
+  )
+  Ok(secp256k1.address_to_string(address))
 }
 
 // =============================================================================
