@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0 - 2026-03-25
+
+### Features
+
+- **Transaction builder** - pipeline API: `build_legacy() |> legacy_to("0x...") |> legacy_value_ether("1.5") |> sign_legacy(wallet)`. Accepts human-readable values (ether, gwei) or raw hex.
+- **Gas estimation** - `gas.estimate_legacy` and `gas.estimate_eip1559` combine multiple RPC calls into a single function returning gas_price/fees + gas_limit
+- **Receipt polling** - `methods.wait_for_receipt` with exponential backoff (1s, 2s, 4s...) and configurable timeout
+- **Nonce manager** - `nonce.new`, `nonce.next`, `nonce.reset` for local nonce tracking across multi-transaction sequences
+- **Sender recovery** - `transaction.recover_sender` and `transaction.recover_sender_eip1559` to cryptographically recover the signer address from signed transactions
+- **ABI output decoding** - `decode.decode_outputs` takes a parsed ABI function entry and decodes return values
+
+### Cleanup
+
+- Removed legacy `ParamType` shim from `contract.gleam` - uses ABI types directly
+- Removed unreachable `Wallet`/`Help` branches in `execute_command`
+- Replaced mock wallet with real wallet module in random tests
+- Updated `actions/checkout` to v6 for Node.js 24 compatibility
+
 ## 1.1.0 - 2026-03-23
 
 ### Features
