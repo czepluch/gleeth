@@ -24,24 +24,17 @@ Requires Elixir installed (e.g. `mise install elixir`) for the `ex_keccak` and `
 
 ## Architecture
 
-### Entrypoint and CLI dispatch
-
-`src/gleeth.gleam` - parses argv, dispatches to command modules. The `wallet` subcommand is handled separately (no RPC URL required); all other commands go through `provider.new()` for RPC URL validation, then `execute_command()`.
-
-`src/gleeth/cli.gleam` - defines the `Command` sum type and `Args` record. All CLI argument parsing lives here. RPC URL can come from `--rpc-url` flag or `GLEETH_RPC_URL` env var.
-
 ### Module layout
 
-- `commands/` - one module per CLI command (balance, block_number, call, etc.), each exporting an `execute()` function
 - `rpc/` - JSON-RPC 2.0 client: `client.gleam` (HTTP), `methods.gleam` (Ethereum methods + receipt polling), `types.gleam` (GleethError sum type), `response_utils.gleam`
-- `ethereum/` - domain types (`types.gleam`), contract helpers (`contract.gleam`), ABI encoding/decoding (`abi/`), EIP-55 addresses (`address.gleam`), output formatting (`formatting.gleam`)
+- `ethereum/` - domain types (`types.gleam`), contract helpers (`contract.gleam`), ABI encoding/decoding (`abi/`), EIP-55 addresses (`address.gleam`)
 - `crypto/` - keccak256 (`keccak.gleam`), secp256k1 (`secp256k1.gleam`), wallet (`wallet.gleam`), transaction signing/decoding/builder (`transaction.gleam`), random key generation (`random.gleam`)
 - `provider.gleam` - opaque Provider type wrapping validated RPC URL + chain ID
 - `wei.gleam` - ETH/gwei/wei conversions between human-readable and hex formats
 - `gas.gleam` - gas estimation helpers (combines multiple RPC calls)
 - `nonce.gleam` - local nonce tracking for multi-transaction sequences
 - `encoding/` - RLP encoding/decoding
-- `utils/` - hex conversion, input validation, file I/O
+- `utils/` - hex conversion, input validation
 
 ### Error handling
 

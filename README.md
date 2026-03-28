@@ -159,18 +159,6 @@ pub fn main() {
 
 Run `mix local.hex --force` before first build if Elixir is freshly installed.
 
-## CLI
-
-Gleeth also includes a CLI for quick Ethereum queries:
-
-```sh
-gleam run -- block-number --rpc-url http://localhost:8545
-gleam run -- balance 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --rpc-url http://localhost:8545
-gleam run -- send --to 0x... --value 0xde0b6b3a7640000 --private-key 0x... --rpc-url http://localhost:8545
-```
-
-Set `GLEETH_RPC_URL` to avoid passing `--rpc-url` every time.
-
 ## Development
 
 ```sh
