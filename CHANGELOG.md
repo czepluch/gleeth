@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 - 2026-03-28
+
+### Changes
+
+- **Library-only package** - CLI commands moved to separate [gleeth-cli](https://github.com/czepluch/gleeth-cli) package. `argv` and `simplifile` dependencies removed. gleeth is now a pure library with no IO or argument parsing.
+- **ABI fuzz tests** - random encode/decode roundtrips for uint, int, bool, address, string, bytes, tuples, and arrays
+- **Sign/recover fuzz tests** - random key generation, signing, and address recovery cycles
+- **ERC-20 integration test** - full deploy, approve, transferFrom, balanceOf flow against anvil
+
 ## 1.2.0 - 2026-03-25
 
 ### Features
