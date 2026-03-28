@@ -15,6 +15,43 @@ const test_private_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae78
 const test_address = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
 
 // =============================================================================
+// Cross-verified against cast keccak
+// =============================================================================
+
+pub fn mail_type_hash_matches_cast_test() {
+  let types =
+    dict.from_list([
+      #("Mail", [
+        eip712.field("from", "address"),
+        eip712.field("to", "address"),
+        eip712.field("contents", "string"),
+      ]),
+    ])
+  // cast keccak "Mail(address from,address to,string contents)"
+  hex.encode(eip712.hash_type("Mail", types))
+  |> should.equal(
+    "0x536e54c54e6699204b424f41f6dea846ee38ac369afec3e7c141d2c92c65e67f",
+  )
+}
+
+pub fn domain_type_hash_matches_cast_test() {
+  let types =
+    dict.from_list([
+      #("EIP712Domain", [
+        eip712.field("name", "string"),
+        eip712.field("version", "string"),
+        eip712.field("chainId", "uint256"),
+        eip712.field("verifyingContract", "address"),
+      ]),
+    ])
+  // cast keccak "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+  hex.encode(eip712.hash_type("EIP712Domain", types))
+  |> should.equal(
+    "0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f",
+  )
+}
+
+// =============================================================================
 // encodeType tests
 // =============================================================================
 
