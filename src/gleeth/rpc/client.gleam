@@ -81,6 +81,23 @@ fn send_http_request(
   }
 }
 
+/// Send a batch of JSON-RPC requests in a single HTTP call.
+/// The body should be a JSON array of request objects.
+/// Returns the raw response body (a JSON array of responses).
+pub fn make_batch_request(
+  rpc_url: String,
+  batch_body: String,
+) -> Result(String, rpc_types.GleethError) {
+  use http_response <- result.try(send_http_request(rpc_url, batch_body))
+  case http_response.status {
+    200 -> Ok(http_response.body)
+    status ->
+      Error(rpc_types.NetworkError(
+        "HTTP request failed with status: " <> int.to_string(status),
+      ))
+  }
+}
+
 // Parse URL into scheme, host, and path
 fn parse_url(
   url: String,
