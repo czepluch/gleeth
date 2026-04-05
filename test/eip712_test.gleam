@@ -51,6 +51,176 @@ pub fn domain_type_hash_matches_cast_test() {
   )
 }
 
+pub fn domain_separator_matches_solidity_test() {
+  let d =
+    eip712.domain()
+    |> eip712.domain_name("Ether Mail")
+    |> eip712.domain_version("1")
+    |> eip712.domain_chain_id(1)
+    |> eip712.domain_verifying_contract(
+      "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+    )
+  let assert Ok(ds) = eip712.hash_domain(d, dict.new())
+  // From Solidity: EIP712Verify.domainSeparator()
+  hex.encode(ds)
+  |> should.equal(
+    "0xf2cee375fa42b42143804025fc449deafd50cc031ca257e0b194a650a912090f",
+  )
+}
+
+pub fn mail_struct_hash_matches_solidity_test() {
+  let types =
+    dict.from_list([
+      #("Mail", [
+        eip712.field("from", "address"),
+        eip712.field("to", "address"),
+        eip712.field("contents", "string"),
+      ]),
+    ])
+  let message =
+    dict.from_list([
+      #(
+        "from",
+        eip712.address_val("0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"),
+      ),
+      #("to", eip712.address_val("0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB")),
+      #("contents", eip712.string_val("Hello, Bob!")),
+    ])
+  let assert Ok(sh) = eip712.hash_struct("Mail", message, types)
+  // From Solidity: EIP712Verify.mailStructHash()
+  hex.encode(sh)
+  |> should.equal(
+    "0x91731d77ee842ec57699d1d9f0fba1d65d9b4ab7a074ebd935d3ea7eebbdf214",
+  )
+}
+
+pub fn mail_digest_matches_solidity_test() {
+  let types =
+    dict.from_list([
+      #("Mail", [
+        eip712.field("from", "address"),
+        eip712.field("to", "address"),
+        eip712.field("contents", "string"),
+      ]),
+    ])
+  let d =
+    eip712.domain()
+    |> eip712.domain_name("Ether Mail")
+    |> eip712.domain_version("1")
+    |> eip712.domain_chain_id(1)
+    |> eip712.domain_verifying_contract(
+      "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+    )
+  let message =
+    dict.from_list([
+      #(
+        "from",
+        eip712.address_val("0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"),
+      ),
+      #("to", eip712.address_val("0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB")),
+      #("contents", eip712.string_val("Hello, Bob!")),
+    ])
+  let data = eip712.typed_data(types, "Mail", d, message)
+  let assert Ok(digest) = eip712.hash_typed_data(data)
+  // From Solidity: EIP712Verify.mailDigest()
+  hex.encode(digest)
+  |> should.equal(
+    "0xd26e78c40dcd18c379ca37f0ae84be81178cfd5c9c46598d8e142648d00edd60",
+  )
+}
+
+pub fn permit_domain_separator_matches_solidity_test() {
+  let d =
+    eip712.domain()
+    |> eip712.domain_name("USD Coin")
+    |> eip712.domain_version("2")
+    |> eip712.domain_chain_id(1)
+    |> eip712.domain_verifying_contract(
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    )
+  let assert Ok(ds) = eip712.hash_domain(d, dict.new())
+  // From Solidity: EIP712Verify.permitDomainSeparator()
+  hex.encode(ds)
+  |> should.equal(
+    "0x06c37168a7db5138defc7866392bb87a741f9b3d104deb5094588ce041cae335",
+  )
+}
+
+pub fn permit_struct_hash_matches_solidity_test() {
+  let types =
+    dict.from_list([
+      #("Permit", [
+        eip712.field("owner", "address"),
+        eip712.field("spender", "address"),
+        eip712.field("value", "uint256"),
+        eip712.field("nonce", "uint256"),
+        eip712.field("deadline", "uint256"),
+      ]),
+    ])
+  let message =
+    dict.from_list([
+      #(
+        "owner",
+        eip712.address_val("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+      ),
+      #(
+        "spender",
+        eip712.address_val("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+      ),
+      #("value", eip712.int_val(1_000_000)),
+      #("nonce", eip712.int_val(0)),
+      #("deadline", eip712.int_val(1_700_000_000)),
+    ])
+  let assert Ok(sh) = eip712.hash_struct("Permit", message, types)
+  // From Solidity: EIP712Verify.permitStructHash()
+  hex.encode(sh)
+  |> should.equal(
+    "0xc9612b1f92c543b5ddd2f9063f52b6a30939780587748aebeef985ca52cbe26b",
+  )
+}
+
+pub fn permit_digest_matches_solidity_test() {
+  let types =
+    dict.from_list([
+      #("Permit", [
+        eip712.field("owner", "address"),
+        eip712.field("spender", "address"),
+        eip712.field("value", "uint256"),
+        eip712.field("nonce", "uint256"),
+        eip712.field("deadline", "uint256"),
+      ]),
+    ])
+  let d =
+    eip712.domain()
+    |> eip712.domain_name("USD Coin")
+    |> eip712.domain_version("2")
+    |> eip712.domain_chain_id(1)
+    |> eip712.domain_verifying_contract(
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    )
+  let message =
+    dict.from_list([
+      #(
+        "owner",
+        eip712.address_val("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+      ),
+      #(
+        "spender",
+        eip712.address_val("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+      ),
+      #("value", eip712.int_val(1_000_000)),
+      #("nonce", eip712.int_val(0)),
+      #("deadline", eip712.int_val(1_700_000_000)),
+    ])
+  let data = eip712.typed_data(types, "Permit", d, message)
+  let assert Ok(digest) = eip712.hash_typed_data(data)
+  // From Solidity: EIP712Verify.permitDigest()
+  hex.encode(digest)
+  |> should.equal(
+    "0x3368ca109ea474392bce8aa2b852e284f41f4b066c353e2abaf41c9b7ccaf554",
+  )
+}
+
 // =============================================================================
 // encodeType tests
 // =============================================================================
