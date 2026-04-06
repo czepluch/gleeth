@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0 - 2026-04-06
+
+### Features
+
+- **EIP-712 typed data signing** - `eip712.sign_typed_data` for permits, order books, and meta-transactions. Full spec implementation with domain separation, recursive struct hashing, and Solidity-verified output.
+- **Batch JSON-RPC** - `batch.new() |> batch.add(...) |> batch.execute_strings(provider)` sends multiple RPC calls in a single HTTP request
+- **Contract deployment** - `deploy.deploy` and `deploy.deploy_with_args` handle signing, broadcasting, and receipt polling, returning the contract address
+- **Retry middleware** - `provider.with_retry(provider, default_retry())` adds automatic retry with exponential backoff on HTTP 429/503 and connection failures
+- **Block queries** - `get_block_by_number` and `get_block_by_hash` with full Block type decoding
+
 ## 1.3.0 - 2026-03-28
 
 ### Changes
