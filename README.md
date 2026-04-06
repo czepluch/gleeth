@@ -153,7 +153,7 @@ pub fn main() {
 - **Batch JSON-RPC** - multiple RPC calls in a single HTTP request via `batch.new() |> batch.add(...) |> batch.execute_strings(provider)`
 - **Contract deployment** - `deploy.deploy` and `deploy.deploy_with_args` handle signing, broadcasting, and receipt polling
 - **Retry middleware** - automatic retry with exponential backoff on 429/503 via `provider.with_retry`
-- **Contract type** - `contract.at(provider, address, abi)` for automatic ABI encoding/decoding on `call` and `send`
+- **Contract type** - `contract.at(provider, address, abi)` for automatic ABI encoding/decoding on `call` and `send`, with string-coerced `call_raw`/`send_raw`
 - **RLP encoding/decoding** - per Ethereum Yellow Paper spec
 
 ## Requirements

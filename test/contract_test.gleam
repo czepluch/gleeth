@@ -1,5 +1,5 @@
 /// Contract type tests against anvil.
-/// Tests read calls, write calls, and error handling.
+/// Tests read calls, write calls, string-coerced calls, and error handling.
 import gleam/string
 import gleeth/contract
 import gleeth/crypto/wallet
@@ -153,6 +153,69 @@ pub fn contract_multiple_calls_test() {
         [abi_types.UintValue(n)] -> n |> should.equal(3)
         _ -> should.fail()
       }
+    }
+  }
+}
+
+// =============================================================================
+// String-coerced call_raw
+// =============================================================================
+
+pub fn contract_call_raw_test() {
+  case anvil_available() {
+    False -> Nil
+    True -> {
+      let assert Ok(p) = provider.new(anvil_url)
+      let assert Ok(addr) = deploy_counter()
+      let assert Ok(abi) = json.parse_abi(counter_abi)
+      let c = contract.at(p, addr, abi)
+
+      // call_raw with no args
+      let assert Ok(values) = contract.call_raw(c, "getCount", [])
+      case values {
+        [abi_types.UintValue(n)] -> n |> should.equal(0)
+        _ -> should.fail()
+      }
+    }
+  }
+}
+
+pub fn contract_send_raw_then_call_raw_test() {
+  case anvil_available() {
+    False -> Nil
+    True -> {
+      let assert Ok(p) = provider.new(anvil_url)
+      let assert Ok(w) = wallet.from_private_key_hex(private_key_0)
+      let assert Ok(addr) = deploy_counter()
+      let assert Ok(abi) = json.parse_abi(counter_abi)
+      let c = contract.at(p, addr, abi)
+
+      // send_raw with no args
+      let assert Ok(_) =
+        contract.send_raw(c, w, "increment", [], "0x100000", anvil_chain_id)
+
+      let assert Ok(values) = contract.call_raw(c, "getCount", [])
+      case values {
+        [abi_types.UintValue(n)] -> n |> should.equal(1)
+        _ -> should.fail()
+      }
+    }
+  }
+}
+
+pub fn contract_call_raw_wrong_arg_count_test() {
+  case anvil_available() {
+    False -> Nil
+    True -> {
+      let assert Ok(p) = provider.new(anvil_url)
+      let assert Ok(addr) = deploy_counter()
+      let assert Ok(abi) = json.parse_abi(counter_abi)
+      let c = contract.at(p, addr, abi)
+
+      // getCount takes 0 args, pass 1
+      let result = contract.call_raw(c, "getCount", ["extra"])
+      let _ = result |> should.be_error
+      Nil
     }
   }
 }

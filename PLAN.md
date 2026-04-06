@@ -25,7 +25,7 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - Batch JSON-RPC: multiple calls in a single HTTP request
 - Contract deployment: deploy and deploy_with_args with receipt polling
 - Retry middleware: exponential backoff on transient errors (429, 503) via provider.with_retry
-- Contract type: bind provider + address + ABI for automatic encoding/decoding on call and send
+- Contract type: bind provider + address + ABI, with call/send (typed) and call_raw/send_raw (string-coerced)
 - Block queries: get_block_by_number and get_block_by_hash
 - Unified error type: `GleethError` with domain-specific wrapper variants
 - CLI for all read operations + wallet + send
@@ -86,7 +86,7 @@ WebSocket provider for `eth_subscribe` (new blocks, pending txs, logs).
 Each ships independently as a minor version bump.
 
 - **Contract type** (#37) - DONE - bind provider + address + ABI for simplified contract interaction
-- **Typed contract bindings** (#19) - runtime wrapper then code generation from ABI JSON
+- **Typed contract bindings** (#19) - DONE (runtime wrapper: call_raw/send_raw with auto string coercion). Code generation deferred.
 - **EIP-712 typed data signing** (#20) - DONE
 - **Batch JSON-RPC** (#21) - DONE
 - **Block subscription via polling** (#22) - poll-based new block detection

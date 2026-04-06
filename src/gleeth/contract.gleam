@@ -22,6 +22,7 @@
 //// ```
 
 import gleam/bit_array
+import gleam/int
 import gleam/list
 import gleam/result
 import gleam/string
@@ -34,6 +35,7 @@ import gleeth/ethereum/abi/types as abi_types
 import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
+import gleeth/utils/hex
 
 /// A contract instance bound to a provider, address, and ABI.
 pub type Contract {
@@ -120,9 +122,189 @@ pub fn send(
   methods.send_raw_transaction(contract.provider, signed.raw_transaction)
 }
 
+/// Call a read-only function using string arguments that are auto-coerced
+/// to the correct ABI types based on the function's ABI definition.
+///
+/// Addresses are passed as hex strings, integers as decimal strings or hex,
+/// booleans as "true"/"false".
+///
+/// ## Examples
+///
+/// ```gleam
+/// // Instead of: contract.call(c, "balanceOf", [AddressVal("0xf39f...")])
+/// contract.call_raw(c, "balanceOf", ["0xf39f..."])
+///
+/// // Multiple args
+/// contract.call_raw(c, "allowance", ["0xf39f...", "0x7099..."])
+/// ```
+pub fn call_raw(
+  contract: Contract,
+  function_name: String,
+  args: List(String),
+) -> Result(List(abi_types.AbiValue), rpc_types.GleethError) {
+  use #(input_types, output_types) <- result.try(find_function_types(
+    contract,
+    function_name,
+  ))
+  use abi_args <- result.try(coerce_args(input_types, args))
+  let params = list.zip(input_types, abi_args)
+
+  use calldata <- result.try(encode_calldata(function_name, params))
+  use result_hex <- result.try(methods.call_contract(
+    contract.provider,
+    contract.address,
+    calldata,
+  ))
+  use decoded <- result.try(
+    decode_output(output_types, result_hex)
+    |> result.map_error(rpc_types.AbiErr),
+  )
+  Ok(decoded)
+}
+
+/// Send a write transaction using string arguments that are auto-coerced.
+pub fn send_raw(
+  contract: Contract,
+  w: wallet.Wallet,
+  function_name: String,
+  args: List(String),
+  gas_limit: String,
+  chain_id: Int,
+) -> Result(String, rpc_types.GleethError) {
+  use #(input_types, _output_types) <- result.try(find_function_types(
+    contract,
+    function_name,
+  ))
+  use abi_args <- result.try(coerce_args(input_types, args))
+  let params = list.zip(input_types, abi_args)
+
+  use calldata <- result.try(encode_calldata(function_name, params))
+
+  let sender = wallet.get_address(w)
+  use nonce <- result.try(methods.get_transaction_count(
+    contract.provider,
+    sender,
+    "pending",
+  ))
+  use gas_price <- result.try(methods.get_gas_price(contract.provider))
+
+  use tx <- result.try(
+    transaction.create_legacy_transaction(
+      contract.address,
+      "0x0",
+      gas_limit,
+      gas_price,
+      nonce,
+      calldata,
+      chain_id,
+    )
+    |> result.map_error(rpc_types.TransactionErr),
+  )
+  use signed <- result.try(
+    transaction.sign_transaction(tx, w)
+    |> result.map_error(rpc_types.TransactionErr),
+  )
+  methods.send_raw_transaction(contract.provider, signed.raw_transaction)
+}
+
 // =============================================================================
 // Internal helpers
 // =============================================================================
+
+/// Coerce string arguments to ABI values based on the expected types.
+fn coerce_args(
+  types: List(abi_types.AbiType),
+  args: List(String),
+) -> Result(List(abi_types.AbiValue), rpc_types.GleethError) {
+  case list.length(types) == list.length(args) {
+    False ->
+      Error(rpc_types.ParseError(
+        "Expected "
+        <> int.to_string(list.length(types))
+        <> " arguments, got "
+        <> int.to_string(list.length(args)),
+      ))
+    True ->
+      list.zip(types, args)
+      |> list.try_map(fn(pair) {
+        let #(type_, value) = pair
+        coerce_value(type_, value)
+      })
+  }
+}
+
+fn coerce_value(
+  type_: abi_types.AbiType,
+  value: String,
+) -> Result(abi_types.AbiValue, rpc_types.GleethError) {
+  case type_ {
+    abi_types.Address -> Ok(abi_types.AddressValue(value))
+    abi_types.Bool ->
+      case string.lowercase(value) {
+        "true" | "1" -> Ok(abi_types.BoolValue(True))
+        "false" | "0" -> Ok(abi_types.BoolValue(False))
+        _ -> Error(rpc_types.ParseError("Cannot parse bool: " <> value))
+      }
+    abi_types.String -> Ok(abi_types.StringValue(value))
+    abi_types.Uint(_) -> parse_int_value(value)
+    abi_types.Int(_) -> parse_int_value(value)
+    abi_types.FixedBytes(size) -> {
+      case hex.decode(value) {
+        Ok(bytes) -> {
+          let pad_size = size - bit_array.byte_size(bytes)
+          case pad_size >= 0 {
+            True -> {
+              let padding = make_zeros(pad_size)
+              Ok(abi_types.FixedBytesValue(bit_array.concat([bytes, padding])))
+            }
+            False -> Error(rpc_types.ParseError("bytes value too long"))
+          }
+        }
+        Error(_) ->
+          Error(rpc_types.ParseError("Invalid hex for bytes: " <> value))
+      }
+    }
+    abi_types.Bytes -> {
+      case hex.decode(value) {
+        Ok(bytes) -> Ok(abi_types.BytesValue(bytes))
+        Error(_) ->
+          Error(rpc_types.ParseError("Invalid hex for bytes: " <> value))
+      }
+    }
+    _ ->
+      Error(rpc_types.ParseError(
+        "Unsupported type for string coercion: " <> abi_types.to_string(type_),
+      ))
+  }
+}
+
+fn parse_int_value(
+  value: String,
+) -> Result(abi_types.AbiValue, rpc_types.GleethError) {
+  case int.parse(value) {
+    Ok(n) -> Ok(abi_types.UintValue(n))
+    Error(_) ->
+      case hex.to_int(value) {
+        Ok(n) -> Ok(abi_types.UintValue(n))
+        Error(_) ->
+          Error(rpc_types.ParseError("Cannot parse integer: " <> value))
+      }
+  }
+}
+
+fn make_zeros(n: Int) -> BitArray {
+  case n <= 0 {
+    True -> <<>>
+    False -> make_zeros_acc(n, <<>>)
+  }
+}
+
+fn make_zeros_acc(n: Int, acc: BitArray) -> BitArray {
+  case n <= 0 {
+    True -> acc
+    False -> make_zeros_acc(n - 1, <<acc:bits, 0:8>>)
+  }
+}
 
 fn find_function_types(
   contract: Contract,
