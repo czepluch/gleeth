@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0 - 2026-04-07
+
+### Features
+
+- **Contract type** - `contract.at(provider, address, abi)` binds provider, address, and ABI together for simplified interaction
+- **String-coerced calls** - `contract.call_raw` and `contract.send_raw` accept plain strings, auto-coerced to ABI types
+- **Event streaming** - `events.get_events` combines getLogs + ABI event decoding in one call; `get_events_by_name` filters by event name
+- **EIP-2612 permits** - `permit.sign` for one-liner permit signing with auto domain/nonce fetch
+- **Multicall3** - `multicall.new() |> multicall.add(...) |> multicall.execute(provider)` batches contract reads at the EVM level
+
 ## 1.4.0 - 2026-04-06
 
 ### Features

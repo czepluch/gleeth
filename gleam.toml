@@ -1,5 +1,5 @@
 name = "gleeth"
-version = "1.4.0"
+version = "1.5.0"
 description = "Ethereum library for Gleam - JSON-RPC client, transaction signing, ABI encoding, and wallet management on the BEAM"
 licences = ["MIT"]
 repository = { type = "github", user = "czepluch", repo = "gleeth" }
