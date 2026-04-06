@@ -81,14 +81,28 @@ WebSocket provider for `eth_subscribe` (new blocks, pending txs, logs).
 
 ## Phase 11: Advanced features
 
-Each ships independently as a minor version bump. GitHub issues #19-#28.
+Each ships independently as a minor version bump.
 
-- **Typed contract bindings** (#19) - generate Gleam modules from ABI JSON
-- **EIP-712 typed data signing** (#20) - DONE - permits, order books, meta-transactions
-- **Batch JSON-RPC** (#21) - DONE - multiple RPC calls in single HTTP request
+- **Contract type** (#37) - bind provider + address + ABI for simplified contract interaction
+- **Typed contract bindings** (#19) - runtime wrapper then code generation from ABI JSON
+- **EIP-712 typed data signing** (#20) - DONE
+- **Batch JSON-RPC** (#21) - DONE
 - **Block subscription via polling** (#22) - poll-based new block detection
 - **ENS name resolution** (#24) - resolve `.eth` names to addresses
 - **HD wallets / BIP39 mnemonics** (#25) - seed phrases, derivation paths
 - **Multi-chain configuration** (#26) - chain registry
-- **Contract deployment** (#27) - DONE - deploy and deploy_with_args with receipt polling
+- **Contract deployment** (#27) - DONE
 - **Multicall batching** (#28) - batch reads via Multicall3
+- **EIP-2612 permit helper** (#38) - one-liner permit signing with auto nonce/domain fetch
+- **Log streaming with ABI decoding** (#39) - get_logs + event decoding in one call
+
+## Speculative / future ideas
+
+Not yet tracked as issues. May be worth pursuing based on user demand.
+
+- **Simulation/dry-run** - `eth_call` with state overrides for simulating transactions
+  before sending. Used by MEV bots and advanced dapps.
+- **Event subscription helper** - higher-level than block polling. Filter for specific
+  contract events, decode them automatically. "Watch for Transfer events on USDC."
+- **EIP-4844 blob transactions** - Type 3 transactions for L2 data availability.
+  Increasingly relevant as rollups adopt blobs.
