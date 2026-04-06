@@ -2,6 +2,7 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleeth/provider
 import gleeth/rpc/client
 import gleeth/rpc/types as rpc_types
 
@@ -42,7 +43,7 @@ pub fn decode_rpc_response(
 }
 
 // Make an RPC request and decode the result as a string.
-// Used for simple RPC methods that return a single hex string (block number, balance, etc.)
+// Uses retry config from the provider if configured.
 pub fn make_string_request(
   rpc_url: String,
   method: rpc_types.EthMethod,
@@ -54,6 +55,31 @@ pub fn make_string_request(
     params,
   ))
 
+  decode_rpc_response(body, decode.string)
+}
+
+// Make an RPC request with retry support and decode the result as a string.
+pub fn make_string_request_with_provider(
+  p: provider.Provider,
+  method: rpc_types.EthMethod,
+  params: List(json.Json),
+) -> Result(String, rpc_types.GleethError) {
+  let retry = provider.retry_config(p)
+  use body <- result.try(case retry.max_retries > 0 {
+    True ->
+      client.make_request_with_retry(
+        provider.rpc_url(p),
+        rpc_types.method_to_string(method),
+        params,
+        retry,
+      )
+    False ->
+      client.make_request(
+        provider.rpc_url(p),
+        rpc_types.method_to_string(method),
+        params,
+      )
+  })
   decode_rpc_response(body, decode.string)
 }
 
@@ -70,5 +96,31 @@ pub fn make_decoded_request(
     params,
   ))
 
+  decode_rpc_response(body, decoder)
+}
+
+// Make an RPC request with retry support and decode with a custom decoder.
+pub fn make_decoded_request_with_provider(
+  p: provider.Provider,
+  method: rpc_types.EthMethod,
+  params: List(json.Json),
+  decoder: decode.Decoder(a),
+) -> Result(a, rpc_types.GleethError) {
+  let retry = provider.retry_config(p)
+  use body <- result.try(case retry.max_retries > 0 {
+    True ->
+      client.make_request_with_retry(
+        provider.rpc_url(p),
+        rpc_types.method_to_string(method),
+        params,
+        retry,
+      )
+    False ->
+      client.make_request(
+        provider.rpc_url(p),
+        rpc_types.method_to_string(method),
+        params,
+      )
+  })
   decode_rpc_response(body, decoder)
 }

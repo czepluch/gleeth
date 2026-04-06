@@ -23,13 +23,35 @@ import gleam/option.{type Option, None}
 import gleam/string
 import gleeth/rpc/types as rpc_types
 
+/// Retry configuration for transient RPC errors.
+pub type RetryConfig {
+  RetryConfig(
+    /// Maximum number of retry attempts. 0 means no retries.
+    max_retries: Int,
+    /// Initial backoff in milliseconds before the first retry.
+    initial_backoff_ms: Int,
+    /// Maximum backoff in milliseconds (backoff is capped at this value).
+    max_backoff_ms: Int,
+  )
+}
+
+/// Default retry config: 3 retries, 1s initial backoff, 8s max.
+pub fn default_retry() -> RetryConfig {
+  RetryConfig(max_retries: 3, initial_backoff_ms: 1000, max_backoff_ms: 8000)
+}
+
+/// No retries - fail immediately on error.
+pub fn no_retry() -> RetryConfig {
+  RetryConfig(max_retries: 0, initial_backoff_ms: 0, max_backoff_ms: 0)
+}
+
 /// An opaque handle representing a connection to an Ethereum JSON-RPC endpoint.
 ///
-/// Holds a validated RPC URL and an optional chain ID. Use `new` to create one
-/// from an arbitrary URL, or the convenience constructors `mainnet` and
-/// `sepolia` for well-known networks.
+/// Holds a validated RPC URL, an optional chain ID, and retry configuration.
+/// Use `new` to create one from an arbitrary URL, or the convenience
+/// constructors `mainnet` and `sepolia` for well-known networks.
 pub opaque type Provider {
-  Provider(rpc_url: String, chain_id: Option(Int))
+  Provider(rpc_url: String, chain_id: Option(Int), retry: RetryConfig)
 }
 
 /// Create a new provider from the given RPC URL.
@@ -52,7 +74,7 @@ pub fn new(rpc_url: String) -> Result(Provider, rpc_types.GleethError) {
         string.starts_with(rpc_url, "http://")
         || string.starts_with(rpc_url, "https://")
       {
-        True -> Ok(Provider(rpc_url:, chain_id: None))
+        True -> Ok(Provider(rpc_url:, chain_id: None, retry: no_retry()))
         False ->
           Error(rpc_types.InvalidRpcUrl(
             "RPC URL must start with http:// or https://",
@@ -114,7 +136,11 @@ pub fn with_chain_id(provider: Provider, id: Int) -> Provider {
 /// // -> "https://eth.llamarpc.com"
 /// ```
 pub fn mainnet() -> Provider {
-  Provider(rpc_url: "https://eth.llamarpc.com", chain_id: None)
+  Provider(
+    rpc_url: "https://eth.llamarpc.com",
+    chain_id: None,
+    retry: default_retry(),
+  )
 }
 
 /// Convenience constructor for the Sepolia testnet using a public RPC endpoint.
@@ -127,5 +153,26 @@ pub fn mainnet() -> Provider {
 /// // -> "https://ethereum-sepolia.publicnode.com"
 /// ```
 pub fn sepolia() -> Provider {
-  Provider(rpc_url: "https://ethereum-sepolia.publicnode.com", chain_id: None)
+  Provider(
+    rpc_url: "https://ethereum-sepolia.publicnode.com",
+    chain_id: None,
+    retry: default_retry(),
+  )
+}
+
+/// Attach retry configuration to the provider.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let p = provider.new("http://localhost:8545")
+///   |> result.map(provider.with_retry(_, provider.default_retry()))
+/// ```
+pub fn with_retry(provider: Provider, config: RetryConfig) -> Provider {
+  Provider(..provider, retry: config)
+}
+
+/// Get the retry configuration from the provider.
+pub fn retry_config(provider: Provider) -> RetryConfig {
+  provider.retry
 }

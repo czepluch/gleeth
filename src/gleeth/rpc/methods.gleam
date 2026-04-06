@@ -27,8 +27,8 @@ import gleeth/rpc/types as rpc_types
 pub fn get_block_number(
   provider: Provider,
 ) -> Result(eth_types.BlockNumber, rpc_types.GleethError) {
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthBlockNumber,
     [],
   )
@@ -50,8 +50,8 @@ pub fn get_balance(
   address: eth_types.Address,
 ) -> Result(eth_types.Wei, rpc_types.GleethError) {
   let params = [json.string(address), json.string("latest")]
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthGetBalance,
     params,
   )
@@ -82,8 +82,8 @@ pub fn call_contract(
     ])
 
   let params = [call_object, json.string("latest")]
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthCall,
     params,
   )
@@ -97,8 +97,8 @@ pub fn get_code(
   address: eth_types.Address,
 ) -> Result(String, rpc_types.GleethError) {
   let params = [json.string(address), json.string("latest")]
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthGetCode,
     params,
   )
@@ -123,8 +123,8 @@ pub fn estimate_gas(
     ])
 
   let transaction_object = json.object(transaction_params)
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthEstimateGas,
     [transaction_object],
   )
@@ -151,8 +151,8 @@ pub fn get_storage_at(
     json.string(block_param),
   ]
 
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthGetStorageAt,
     params,
   )
@@ -169,8 +169,8 @@ pub fn get_storage_at(
 /// let assert Ok(chain_id) = get_chain_id(p)
 /// ```
 pub fn get_chain_id(provider: Provider) -> Result(String, rpc_types.GleethError) {
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthChainId,
     [],
   )
@@ -193,8 +193,8 @@ pub fn send_raw_transaction(
   raw_tx: String,
 ) -> Result(eth_types.Hash, rpc_types.GleethError) {
   let params = [json.string(raw_tx)]
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthSendRawTransaction,
     params,
   )
@@ -215,8 +215,8 @@ pub fn get_transaction_count(
     _ -> block
   }
   let params = [json.string(address), json.string(block_param)]
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthGetTransactionCount,
     params,
   )
@@ -228,8 +228,8 @@ pub fn get_transaction_count(
 pub fn get_gas_price(
   provider: Provider,
 ) -> Result(eth_types.Wei, rpc_types.GleethError) {
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthGasPrice,
     [],
   )
@@ -242,8 +242,8 @@ pub fn get_gas_price(
 pub fn get_max_priority_fee(
   provider: Provider,
 ) -> Result(eth_types.Wei, rpc_types.GleethError) {
-  response_utils.make_string_request(
-    provider.rpc_url(provider),
+  response_utils.make_string_request_with_provider(
+    provider,
     rpc_types.EthMaxPriorityFeePerGas,
     [],
   )
@@ -271,8 +271,8 @@ pub fn get_fee_history(
     json.string(newest),
     json.array(reward_percentiles, json.float),
   ]
-  response_utils.make_decoded_request(
-    provider.rpc_url(provider),
+  response_utils.make_decoded_request_with_provider(
+    provider,
     rpc_types.EthFeeHistory,
     params,
     fee_history_decoder(),
@@ -294,8 +294,8 @@ pub fn get_transaction(
   hash: String,
 ) -> Result(eth_types.Transaction, rpc_types.GleethError) {
   let params = [json.string(hash)]
-  response_utils.make_decoded_request(
-    provider.rpc_url(provider),
+  response_utils.make_decoded_request_with_provider(
+    provider,
     rpc_types.EthGetTransactionByHash,
     params,
     transaction_decoder(),
@@ -312,8 +312,8 @@ pub fn get_transaction_receipt(
   transaction_hash: String,
 ) -> Result(eth_types.TransactionReceipt, rpc_types.GleethError) {
   let params = [json.string(transaction_hash)]
-  response_utils.make_decoded_request(
-    provider.rpc_url(provider),
+  response_utils.make_decoded_request_with_provider(
+    provider,
     rpc_types.EthGetTransactionReceipt,
     params,
     transaction_receipt_decoder(),
@@ -359,8 +359,8 @@ pub fn get_logs(
     |> append_topics(topics)
 
   let filter_object = json.object(filter_params)
-  response_utils.make_decoded_request(
-    provider.rpc_url(provider),
+  response_utils.make_decoded_request_with_provider(
+    provider,
     rpc_types.EthGetLogs,
     [filter_object],
     decode.list(log_decoder()),

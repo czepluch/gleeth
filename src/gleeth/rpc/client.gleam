@@ -1,3 +1,4 @@
+import gleam/erlang/process
 import gleam/http
 import gleam/http/request
 import gleam/http/response
@@ -6,6 +7,7 @@ import gleam/int
 import gleam/json
 import gleam/result
 import gleam/string
+import gleeth/provider
 import gleeth/rpc/types as rpc_types
 
 // Make a JSON-RPC request to an Ethereum node.
@@ -32,6 +34,87 @@ pub fn make_request(
       Error(rpc_types.NetworkError(
         "HTTP request failed with status: " <> int.to_string(status),
       ))
+  }
+}
+
+/// Make a JSON-RPC request with automatic retry on transient errors.
+/// Retries on HTTP 429 (rate limited), 503 (service unavailable), and
+/// connection failures, using exponential backoff from the retry config.
+pub fn make_request_with_retry(
+  rpc_url: String,
+  method: String,
+  params: List(json.Json),
+  retry_config: provider.RetryConfig,
+) -> Result(String, rpc_types.GleethError) {
+  do_request_with_retry(
+    rpc_url,
+    method,
+    params,
+    retry_config.max_retries,
+    retry_config.initial_backoff_ms,
+    retry_config.max_backoff_ms,
+    0,
+  )
+}
+
+fn do_request_with_retry(
+  rpc_url: String,
+  method: String,
+  params: List(json.Json),
+  max_retries: Int,
+  backoff_ms: Int,
+  max_backoff_ms: Int,
+  attempt: Int,
+) -> Result(String, rpc_types.GleethError) {
+  let json_rpc_request =
+    rpc_types.JsonRpcRequest(
+      jsonrpc: "2.0",
+      method: method,
+      params: params,
+      id: 1,
+    )
+
+  case encode_request(json_rpc_request) {
+    Error(e) -> Error(e)
+    Ok(request_json) -> {
+      case send_http_request(rpc_url, request_json) {
+        Ok(http_response) ->
+          case http_response.status {
+            200 -> Ok(http_response.body)
+            429 | 503 if attempt < max_retries -> {
+              process.sleep(backoff_ms)
+              let next_backoff = int.min(backoff_ms * 2, max_backoff_ms)
+              do_request_with_retry(
+                rpc_url,
+                method,
+                params,
+                max_retries,
+                next_backoff,
+                max_backoff_ms,
+                attempt + 1,
+              )
+            }
+            status ->
+              Error(rpc_types.NetworkError(
+                "HTTP request failed with status: " <> int.to_string(status),
+              ))
+          }
+        Error(_) if attempt < max_retries -> {
+          process.sleep(backoff_ms)
+          let next_backoff = int.min(backoff_ms * 2, max_backoff_ms)
+          do_request_with_retry(
+            rpc_url,
+            method,
+            params,
+            max_retries,
+            next_backoff,
+            max_backoff_ms,
+            attempt + 1,
+          )
+        }
+        Error(e) -> Error(e)
+      }
+    }
   }
 }
 
