@@ -100,22 +100,27 @@ pub fn domain() -> Domain {
   )
 }
 
+/// Set the domain name field.
 pub fn domain_name(d: Domain, name: String) -> Domain {
   Domain(..d, name: Some(name))
 }
 
+/// Set the domain version field.
 pub fn domain_version(d: Domain, version: String) -> Domain {
   Domain(..d, version: Some(version))
 }
 
+/// Set the domain chain ID field.
 pub fn domain_chain_id(d: Domain, id: Int) -> Domain {
   Domain(..d, chain_id: Some(id))
 }
 
+/// Set the domain verifying contract address.
 pub fn domain_verifying_contract(d: Domain, address: String) -> Domain {
   Domain(..d, verifying_contract: Some(address))
 }
 
+/// Set the domain salt field (hex-encoded bytes32).
 pub fn domain_salt(d: Domain, salt: String) -> Domain {
   Domain(..d, salt: Some(salt))
 }
@@ -130,30 +135,37 @@ pub fn string_val(s: String) -> TypedValue {
   StringVal(s)
 }
 
+/// Wrap an integer as a typed value (for uint256, int256, etc.).
 pub fn int_val(n: Int) -> TypedValue {
   IntVal(n)
 }
 
+/// Wrap a boolean as a typed value.
 pub fn bool_val(b: Bool) -> TypedValue {
   BoolVal(b)
 }
 
+/// Wrap an Ethereum address as a typed value.
 pub fn address_val(addr: String) -> TypedValue {
   AddressVal(addr)
 }
 
+/// Wrap a fixed 32-byte value as a typed value.
 pub fn bytes32_val(b: BitArray) -> TypedValue {
   Bytes32Val(b)
 }
 
+/// Wrap dynamic bytes as a typed value.
 pub fn bytes_val(b: BitArray) -> TypedValue {
   BytesVal(b)
 }
 
+/// Wrap a list of typed values as an array value.
 pub fn array_val(items: List(TypedValue)) -> TypedValue {
   ArrayVal(items)
 }
 
+/// Wrap a dict of named fields as a struct value.
 pub fn struct_val(fields: Dict(String, TypedValue)) -> TypedValue {
   StructVal(fields)
 }

@@ -29,11 +29,14 @@ Requires Elixir installed (e.g. `mise install elixir`) for the `ex_keccak` and `
 - `rpc/` - JSON-RPC 2.0 client: `client.gleam` (HTTP), `methods.gleam` (Ethereum methods + receipt polling), `types.gleam` (GleethError sum type), `response_utils.gleam`
 - `ethereum/` - domain types (`types.gleam`), contract helpers (`contract.gleam`), ABI encoding/decoding (`abi/`), EIP-55 addresses (`address.gleam`)
 - `crypto/` - keccak256 (`keccak.gleam`), secp256k1 (`secp256k1.gleam`), wallet (`wallet.gleam`), transaction signing/decoding/builder (`transaction.gleam`), random key generation (`random.gleam`)
-- `provider.gleam` - opaque Provider type wrapping validated RPC URL + chain ID
+- `provider.gleam` - opaque Provider type wrapping validated RPC URL + chain ID + retry config
 - `wei.gleam` - ETH/gwei/wei conversions between human-readable and hex formats
 - `gas.gleam` - gas estimation helpers (combines multiple RPC calls)
 - `nonce.gleam` - local nonce tracking for multi-transaction sequences
 - `encoding/` - RLP encoding/decoding
+- `eip712.gleam` - EIP-712 typed structured data hashing and signing
+- `deploy.gleam` - contract deployment helpers (deploy, deploy_with_args)
+- `rpc/batch.gleam` - batch JSON-RPC requests in a single HTTP call
 - `utils/` - hex conversion, input validation
 
 ### Error handling

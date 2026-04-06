@@ -143,12 +143,16 @@ pub fn main() {
 - **Nonce manager** - local nonce tracking for multi-transaction sequences
 - **Wei conversions** - `wei.from_ether("1.5")`, `wei.to_gwei(hex)`, `wei.from_int(21000)`
 - **JSON-RPC client** - block number, balance, call, code, estimate gas, storage, logs, transactions, receipts, fee history
-- **Provider abstraction** - opaque type with URL validation and chain ID caching
+- **Provider abstraction** - opaque type with URL validation, chain ID caching, and configurable retry
 - **ABI system** - full encoding/decoding for all Solidity types, calldata decoding, revert reason decoding, JSON ABI parsing, event log decoding
 - **EIP-55 addresses** - `address.checksum` and `address.is_valid_checksum`
 - **EIP-191 signing** - `sign_personal_message`, `recover_personal_message`, `verify_personal_message`
 - **Wallet management** - key generation, message signing, signature recovery
 - **Crypto primitives** - keccak256 (via ex_keccak NIF), secp256k1 (via ex_secp256k1 NIF)
+- **EIP-712 signing** - `eip712.sign_typed_data` for permits, order books, meta-transactions
+- **Batch JSON-RPC** - multiple RPC calls in a single HTTP request via `batch.new() |> batch.add(...) |> batch.execute_strings(provider)`
+- **Contract deployment** - `deploy.deploy` and `deploy.deploy_with_args` handle signing, broadcasting, and receipt polling
+- **Retry middleware** - automatic retry with exponential backoff on 429/503 via `provider.with_retry`
 - **RLP encoding/decoding** - per Ethereum Yellow Paper spec
 
 ## Requirements

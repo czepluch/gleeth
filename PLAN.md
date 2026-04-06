@@ -21,6 +21,10 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - EIP-55 checksummed addresses: `address.checksum`, `address.is_valid_checksum`
 - Crypto: keccak256 (ex_keccak NIF), secp256k1 (ex_secp256k1 NIF)
 - RLP encoding/decoding per Yellow Paper spec
+- EIP-712 typed structured data hashing and signing (permits, order books, meta-transactions)
+- Batch JSON-RPC: multiple calls in a single HTTP request
+- Contract deployment: deploy and deploy_with_args with receipt polling
+- Retry middleware: exponential backoff on transient errors (429, 503) via provider.with_retry
 - Unified error type: `GleethError` with domain-specific wrapper variants
 - CLI for all read operations + wallet + send
 - Fuzz testing (qcheck), cross-implementation verification (cast), and anvil integration tests
@@ -65,10 +69,11 @@ transaction decoding and sender recovery. Part of GitHub issue #7.
 
 ## Phase 10: Provider improvements
 
-### 10.1 Middleware - GitHub issue #29
+### 10.1 Middleware - GitHub issue #29 - DONE
 
-Retry with exponential backoff on transient errors (429, 503), rate limiting,
-request logging.
+Retry with exponential backoff on transient errors (429, 503) via
+`provider.with_retry` and `RetryConfig`. Rate limiting and request logging
+remain future work.
 
 ### 10.2 WebSocket support - GitHub issue #23
 
@@ -79,11 +84,11 @@ WebSocket provider for `eth_subscribe` (new blocks, pending txs, logs).
 Each ships independently as a minor version bump. GitHub issues #19-#28.
 
 - **Typed contract bindings** (#19) - generate Gleam modules from ABI JSON
-- **EIP-712 typed data signing** (#20) - permits, order books, meta-transactions
-- **Batch JSON-RPC** (#21) - multiple RPC calls in single HTTP request
+- **EIP-712 typed data signing** (#20) - DONE - permits, order books, meta-transactions
+- **Batch JSON-RPC** (#21) - DONE - multiple RPC calls in single HTTP request
 - **Block subscription via polling** (#22) - poll-based new block detection
 - **ENS name resolution** (#24) - resolve `.eth` names to addresses
 - **HD wallets / BIP39 mnemonics** (#25) - seed phrases, derivation paths
 - **Multi-chain configuration** (#26) - chain registry
-- **Contract deployment** (#27) - contract creation helper
+- **Contract deployment** (#27) - DONE - deploy and deploy_with_args with receipt polling
 - **Multicall batching** (#28) - batch reads via Multicall3
