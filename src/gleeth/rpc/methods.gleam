@@ -34,6 +34,43 @@ pub fn get_block_number(
   )
 }
 
+/// Get a block by its number by calling `eth_getBlockByNumber`.
+///
+/// `block` can be a hex block number or a tag like `"latest"`, `"earliest"`,
+/// `"pending"`. Returns the block with transaction hashes (not full objects).
+pub fn get_block_by_number(
+  provider: Provider,
+  block: String,
+) -> Result(eth_types.Block, rpc_types.GleethError) {
+  let block_param = case block {
+    "" -> "latest"
+    _ -> block
+  }
+  let params = [json.string(block_param), json.bool(False)]
+  response_utils.make_decoded_request_with_provider(
+    provider,
+    rpc_types.EthGetBlockByNumber,
+    params,
+    block_decoder(),
+  )
+}
+
+/// Get a block by its hash by calling `eth_getBlockByHash`.
+///
+/// Returns the block with transaction hashes (not full objects).
+pub fn get_block_by_hash(
+  provider: Provider,
+  hash: String,
+) -> Result(eth_types.Block, rpc_types.GleethError) {
+  let params = [json.string(hash), json.bool(False)]
+  response_utils.make_decoded_request_with_provider(
+    provider,
+    rpc_types.EthGetBlockByHash,
+    params,
+    block_decoder(),
+  )
+}
+
 /// Get the balance of an address by calling `eth_getBalance`.
 ///
 /// Queries at the `"latest"` block. Returns the balance in wei as a
@@ -423,6 +460,25 @@ fn poll_receipt(
 // Decode a string field, treating null as empty string
 fn nullable_string() -> decode.Decoder(String) {
   decode.one_of(decode.string, [decode.success("")])
+}
+
+fn block_decoder() -> decode.Decoder(eth_types.Block) {
+  use number <- decode.field("number", decode.string)
+  use hash <- decode.field("hash", decode.string)
+  use parent_hash <- decode.field("parentHash", decode.string)
+  use timestamp <- decode.field("timestamp", decode.string)
+  use gas_limit <- decode.field("gasLimit", decode.string)
+  use gas_used <- decode.field("gasUsed", decode.string)
+  use transactions <- decode.field("transactions", decode.list(decode.string))
+  decode.success(eth_types.Block(
+    number: number,
+    hash: hash,
+    parent_hash: parent_hash,
+    timestamp: timestamp,
+    gas_limit: gas_limit,
+    gas_used: gas_used,
+    transactions: transactions,
+  ))
 }
 
 fn transaction_decoder() -> decode.Decoder(eth_types.Transaction) {

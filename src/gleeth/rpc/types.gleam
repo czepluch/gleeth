@@ -42,6 +42,7 @@ pub type EthMethod {
   EthGetStorageAt
   EthGetLogs
   EthGetBlockByNumber
+  EthGetBlockByHash
   EthChainId
   EthSendRawTransaction
   EthGetTransactionCount
@@ -63,6 +64,7 @@ pub fn method_to_string(method: EthMethod) -> String {
     EthGetStorageAt -> "eth_getStorageAt"
     EthGetLogs -> "eth_getLogs"
     EthGetBlockByNumber -> "eth_getBlockByNumber"
+    EthGetBlockByHash -> "eth_getBlockByHash"
     EthChainId -> "eth_chainId"
     EthSendRawTransaction -> "eth_sendRawTransaction"
     EthGetTransactionCount -> "eth_getTransactionCount"
