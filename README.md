@@ -96,7 +96,39 @@ pub fn main() {
 }
 ```
 
-### Call a contract
+### Contract interaction
+
+The `contract` module binds a provider, address, and ABI together so you can
+call functions by name without manually encoding calldata:
+
+```gleam
+import gleeth/contract
+import gleeth/crypto/wallet
+import gleeth/ethereum/abi/json
+import gleeth/provider
+
+pub fn main() {
+  let assert Ok(p) = provider.new("http://localhost:8545")
+  let assert Ok(w) = wallet.from_private_key_hex("0xac09...")
+
+  // Parse the ABI and create a contract handle
+  let assert Ok(abi) = json.parse_abi(erc20_abi_json)
+  let usdc = contract.at(p, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", abi)
+
+  // Read a balance - just pass strings, types are inferred from the ABI
+  let assert Ok(values) = contract.call_raw(usdc, "balanceOf", [
+    "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+  ])
+
+  // Send a transfer
+  let assert Ok(tx_hash) = contract.send_raw(usdc, w, "transfer", [
+    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "1000000",
+  ], "0x100000", 1)
+}
+```
+
+### Low-level contract call
 
 ```gleam
 import gleeth/provider
@@ -105,7 +137,7 @@ import gleeth/rpc/methods
 pub fn main() {
   let assert Ok(p) = provider.new("http://localhost:8545")
 
-  // Call balanceOf(address) on an ERC-20
+  // Call balanceOf(address) on an ERC-20 with raw calldata
   let assert Ok(result) = methods.call_contract(
     p,
     "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  // USDC

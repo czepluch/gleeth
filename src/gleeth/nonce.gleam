@@ -19,6 +19,15 @@ pub type NonceManager {
 
 /// Create a new nonce manager for the given address.
 /// Fetches the current pending nonce from the network.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(p) = provider.new("http://localhost:8545")
+/// let address = wallet.get_address(w)
+///
+/// let assert Ok(nm) = nonce.new(p, address)
+/// ```
 pub fn new(
   provider: Provider,
   address: String,
@@ -42,6 +51,20 @@ pub fn new(
 /// Get the next nonce as a hex string and return an updated manager.
 /// The first call returns the nonce fetched during `new`.
 /// Subsequent calls increment locally without an RPC call.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(nm) = nonce.new(provider, address)
+///
+/// // First call returns the nonce fetched from the network
+/// let assert Ok(#(nm, nonce_hex)) = nonce.next(nm)
+/// // nonce_hex is e.g. "0x5"
+///
+/// // Second call increments locally - no RPC round-trip
+/// let assert Ok(#(nm, next_hex)) = nonce.next(nm)
+/// // next_hex is "0x6"
+/// ```
 pub fn next(
   manager: NonceManager,
 ) -> Result(#(NonceManager, String), rpc_types.GleethError) {
@@ -59,6 +82,18 @@ pub fn next(
 }
 
 /// Reset the nonce manager by re-fetching the nonce from the network.
+/// Useful after a transaction fails or when the on-chain nonce may have
+/// changed due to activity from another client.
+///
+/// ## Examples
+///
+/// ```gleam
+/// // After a failed transaction, resync with the network
+/// let assert Ok(nm) = nonce.reset(nm, provider)
+///
+/// // Continue sending with the correct nonce
+/// let assert Ok(#(nm, nonce_hex)) = nonce.next(nm)
+/// ```
 pub fn reset(
   manager: NonceManager,
   provider: Provider,

@@ -25,6 +25,24 @@ pub type Eip1559GasEstimate {
 }
 
 /// Estimate gas for a legacy transaction by fetching gas price and gas limit.
+///
+/// Combines `eth_gasPrice` and `eth_estimateGas` into a single call.
+/// The returned `LegacyGasEstimate` has `gas_price` and `gas_limit` as hex
+/// strings, ready to pass to `transaction.create_legacy_transaction`.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let sender = wallet.get_address(w)
+/// let to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+///
+/// let assert Ok(est) = gas.estimate_legacy(provider, sender, to, "0xde0b6b3a7640000", "0x")
+///
+/// // Use the estimate in a transaction
+/// let assert Ok(tx) = transaction.create_legacy_transaction(
+///   to, "0xde0b6b3a7640000", est.gas_limit, est.gas_price, nonce, "0x", 1,
+/// )
+/// ```
 pub fn estimate_legacy(
   provider: Provider,
   from: String,
@@ -46,6 +64,22 @@ pub fn estimate_legacy(
 /// Estimate gas for an EIP-1559 transaction by fetching priority fee,
 /// base fee from fee history, and gas limit.
 /// Computes max_fee = 2 * base_fee + priority_fee.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let sender = wallet.get_address(w)
+/// let to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+///
+/// let assert Ok(est) = gas.estimate_eip1559(provider, sender, to, "0xde0b6b3a7640000", "0x")
+///
+/// // Use the estimate in a Type 2 transaction
+/// let assert Ok(tx) = transaction.create_eip1559_transaction(
+///   to, "0xde0b6b3a7640000",
+///   est.gas_limit, est.max_fee_per_gas, est.max_priority_fee_per_gas,
+///   nonce, "0x", 1,
+/// )
+/// ```
 pub fn estimate_eip1559(
   provider: Provider,
   from: String,

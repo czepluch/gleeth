@@ -3,13 +3,17 @@
 //// Binds a provider, address, and parsed ABI together so you can call
 //// contract functions without manually encoding calldata or decoding results.
 ////
-//// ## Examples
+//// There are two calling styles: typed and string-coerced. Typed calls use
+//// explicit `AbiValue` constructors; string-coerced calls (`call_raw`/`send_raw`)
+//// accept plain strings and auto-coerce them based on the ABI.
+////
+//// ## Typed calls
 ////
 //// ```gleam
 //// let assert Ok(abi) = json.parse_abi(erc20_abi_json)
 //// let usdc = contract.at(provider, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", abi)
 ////
-//// // Read-only call
+//// // Read-only call with explicit ABI value types
 //// let assert Ok(values) = contract.call(usdc, "balanceOf", [
 ////   types.AddressVal("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
 //// ])
@@ -19,6 +23,26 @@
 ////   types.AddressVal("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
 ////   types.UintValue(1_000_000),
 //// ], "0x100000", chain_id)
+//// ```
+////
+//// ## String-coerced calls
+////
+//// The `call_raw`/`send_raw` variants accept plain strings and coerce them
+//// to the correct ABI types automatically:
+////
+//// ```gleam
+//// let usdc = contract.at(provider, "0xA0b8...eB48", abi)
+////
+//// // Same balanceOf call - just pass the address as a string
+//// let assert Ok(values) = contract.call_raw(usdc, "balanceOf", [
+////   "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+//// ])
+////
+//// // Same transfer - amounts can be decimal strings or hex
+//// let assert Ok(tx_hash) = contract.send_raw(usdc, wallet, "transfer", [
+////   "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+////   "1000000",
+//// ], "0x100000", 1)
 //// ```
 
 import gleam/bit_array
@@ -42,7 +66,14 @@ pub type Contract {
   Contract(provider: Provider, address: String, abi: List(json.AbiEntry))
 }
 
-/// Create a contract instance.
+/// Create a contract instance bound to a provider, address, and parsed ABI.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(abi) = json.parse_abi(erc20_abi_json)
+/// let usdc = contract.at(provider, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", abi)
+/// ```
 pub fn at(
   provider: Provider,
   address: String,
@@ -53,6 +84,19 @@ pub fn at(
 
 /// Call a read-only function on the contract.
 /// Encodes the arguments, calls `eth_call`, and decodes the return values.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(abi) = json.parse_abi(erc20_abi_json)
+/// let usdc = contract.at(provider, "0xA0b8...eB48", abi)
+///
+/// // Read the balance for an address
+/// let assert Ok([types.UintValue(balance)]) =
+///   contract.call(usdc, "balanceOf", [
+///     types.AddressValue("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+///   ])
+/// ```
 pub fn call(
   contract: Contract,
   function_name: String,
@@ -79,6 +123,20 @@ pub fn call(
 
 /// Send a write transaction to the contract.
 /// Encodes the arguments, signs, broadcasts, and returns the transaction hash.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(abi) = json.parse_abi(erc20_abi_json)
+/// let usdc = contract.at(provider, "0xA0b8...eB48", abi)
+///
+/// // Transfer 1,000,000 units (1 USDC) to another address
+/// let assert Ok(tx_hash) =
+///   contract.send(usdc, wallet, "transfer", [
+///     types.AddressValue("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+///     types.UintValue(1_000_000),
+///   ], "0x100000", 1)
+/// ```
 pub fn send(
   contract: Contract,
   w: wallet.Wallet,
@@ -163,6 +221,30 @@ pub fn call_raw(
 }
 
 /// Send a write transaction using string arguments that are auto-coerced.
+///
+/// Like `send`, but accepts plain strings instead of typed `AbiValue`
+/// constructors. Addresses are passed as hex strings, integers as decimal
+/// strings or hex, booleans as "true"/"false".
+///
+/// ## Examples
+///
+/// ```gleam
+/// let usdc = contract.at(provider, "0xA0b8...eB48", abi)
+///
+/// // Transfer 1 USDC - just pass strings
+/// let assert Ok(tx_hash) =
+///   contract.send_raw(usdc, wallet, "transfer", [
+///     "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+///     "1000000",
+///   ], "0x100000", 1)
+///
+/// // Approve a spender for a given amount
+/// let assert Ok(tx_hash) =
+///   contract.send_raw(usdc, wallet, "approve", [
+///     "0xSpenderAddress...",
+///     "5000000",
+///   ], "0x100000", 1)
+/// ```
 pub fn send_raw(
   contract: Contract,
   w: wallet.Wallet,
