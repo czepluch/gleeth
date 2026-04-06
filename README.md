@@ -188,6 +188,7 @@ pub fn main() {
 - **Contract type** - `contract.at(provider, address, abi)` for automatic ABI encoding/decoding on `call` and `send`, with string-coerced `call_raw`/`send_raw`
 - **Event streaming** - `events.get_events` combines getLogs + ABI decoding; `get_events_by_name` filters by event
 - **EIP-2612 permits** - `permit.sign` for one-liner permit signing with auto domain/nonce fetch
+- **Multicall3** - `multicall.new() |> multicall.add(...) |> multicall.execute(provider)` batches contract reads at the EVM level
 - **RLP encoding/decoding** - per Ethereum Yellow Paper spec
 
 ## Requirements

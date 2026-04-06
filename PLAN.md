@@ -29,6 +29,7 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - Block queries: get_block_by_number and get_block_by_hash
 - Event streaming: get_events combines getLogs + ABI event decoding in one call
 - EIP-2612 permits: sign permits with auto domain/nonce fetch
+- Multicall3: batch contract reads at the EVM level via canonical Multicall3 contract
 - Unified error type: `GleethError` with domain-specific wrapper variants
 - CLI for all read operations + wallet + send
 - Fuzz testing (qcheck), cross-implementation verification (cast), and anvil integration tests
@@ -96,7 +97,7 @@ Each ships independently as a minor version bump.
 - **HD wallets / BIP39 mnemonics** (#25) - seed phrases, derivation paths
 - **Multi-chain configuration** (#26) - chain registry
 - **Contract deployment** (#27) - DONE
-- **Multicall batching** (#28) - batch reads via Multicall3
+- **Multicall batching** (#28) - DONE - batch reads via Multicall3
 - **EIP-2612 permit helper** (#38) - DONE - one-liner permit signing with auto nonce/domain fetch
 - **Log streaming with ABI decoding** (#39) - DONE - get_logs + event decoding in one call
 
