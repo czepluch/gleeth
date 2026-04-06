@@ -37,6 +37,8 @@ Requires Elixir installed (e.g. `mise install elixir`) for the `ex_keccak` and `
 - `eip712.gleam` - EIP-712 typed structured data hashing and signing
 - `deploy.gleam` - contract deployment helpers (deploy, deploy_with_args)
 - `contract.gleam` - high-level contract interaction (bind provider + address + ABI, call/send with auto encoding)
+- `events.gleam` - query and decode contract events with ABI matching
+- `permit.gleam` - EIP-2612 permit signing helper
 - `rpc/batch.gleam` - batch JSON-RPC requests in a single HTTP call
 - `utils/` - hex conversion, input validation
 

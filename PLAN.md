@@ -27,6 +27,8 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - Retry middleware: exponential backoff on transient errors (429, 503) via provider.with_retry
 - Contract type: bind provider + address + ABI, with call/send (typed) and call_raw/send_raw (string-coerced)
 - Block queries: get_block_by_number and get_block_by_hash
+- Event streaming: get_events combines getLogs + ABI event decoding in one call
+- EIP-2612 permits: sign permits with auto domain/nonce fetch
 - Unified error type: `GleethError` with domain-specific wrapper variants
 - CLI for all read operations + wallet + send
 - Fuzz testing (qcheck), cross-implementation verification (cast), and anvil integration tests
@@ -95,8 +97,8 @@ Each ships independently as a minor version bump.
 - **Multi-chain configuration** (#26) - chain registry
 - **Contract deployment** (#27) - DONE
 - **Multicall batching** (#28) - batch reads via Multicall3
-- **EIP-2612 permit helper** (#38) - one-liner permit signing with auto nonce/domain fetch
-- **Log streaming with ABI decoding** (#39) - get_logs + event decoding in one call
+- **EIP-2612 permit helper** (#38) - DONE - one-liner permit signing with auto nonce/domain fetch
+- **Log streaming with ABI decoding** (#39) - DONE - get_logs + event decoding in one call
 
 ## Speculative / future ideas
 
