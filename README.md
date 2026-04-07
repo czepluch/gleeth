@@ -44,7 +44,6 @@ The builder API accepts human-readable values - no manual hex conversion needed.
 ```gleam
 import gleeth/crypto/transaction
 import gleeth/crypto/wallet
-import gleeth/gas
 import gleeth/provider
 import gleeth/rpc/methods
 
@@ -52,16 +51,17 @@ pub fn main() {
   let assert Ok(p) = provider.new("http://localhost:8545")
   let assert Ok(w) = wallet.from_private_key_hex("0xac09...")
 
-  // Build and sign in a pipeline
+  // EIP-1559 transaction (recommended - used on all major chains)
   let assert Ok(signed) =
-    transaction.build_legacy()
-    |> transaction.legacy_to("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
-    |> transaction.legacy_value_ether("1.5")
-    |> transaction.legacy_gas_limit_int(21_000)
-    |> transaction.legacy_gas_price_gwei("20.0")
-    |> transaction.legacy_nonce_int(0)
-    |> transaction.legacy_chain(1)
-    |> transaction.sign_legacy(w)
+    transaction.build_eip1559()
+    |> transaction.eip1559_to("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
+    |> transaction.eip1559_value_ether("1.5")
+    |> transaction.eip1559_gas_limit_int(21_000)
+    |> transaction.eip1559_max_fee_gwei("30.0")
+    |> transaction.eip1559_max_priority_fee_gwei("2.0")
+    |> transaction.eip1559_nonce_int(0)
+    |> transaction.eip1559_chain(1)
+    |> transaction.sign_eip1559(w)
 
   // Broadcast and wait for receipt
   let assert Ok(tx_hash) = methods.send_raw_transaction(p, signed.raw_transaction)
@@ -69,7 +69,9 @@ pub fn main() {
 }
 ```
 
-For lower-level control, use `create_legacy_transaction` with hex strings directly:
+Legacy transactions are also supported via `build_legacy()`.
+
+For lower-level control, use `create_eip1559_transaction` or `create_legacy_transaction` with hex strings directly:
 
 ```gleam
 pub fn main() {
