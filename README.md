@@ -15,6 +15,8 @@ An Ethereum library for Gleam, targeting the Erlang (BEAM) runtime. Provides JSO
 gleam add gleeth
 ```
 
+For a step-by-step walkthrough, see the [ERC-20 Tutorial](TUTORIAL.md).
+
 ## Quick start
 
 ### Read chain state
