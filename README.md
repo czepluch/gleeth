@@ -193,6 +193,7 @@ pub fn main() {
 - **Event streaming** - `events.get_events` combines getLogs + ABI decoding; `get_events_by_name` filters by event
 - **EIP-2612 permits** - `permit.sign` for one-liner permit signing with auto domain/nonce fetch
 - **Multicall3** - `multicall.new() |> multicall.add(...) |> multicall.execute(provider)` batches contract reads at the EVM level
+- **Block watcher** - `watcher.start(provider)` spawns a BEAM actor that polls for new blocks and sends typed events
 - **RLP encoding/decoding** - per Ethereum Yellow Paper spec
 
 ## Requirements

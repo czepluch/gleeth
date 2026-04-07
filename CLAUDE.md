@@ -40,6 +40,7 @@ Requires Elixir installed (e.g. `mise install elixir`) for the `ex_keccak` and `
 - `events.gleam` - query and decode contract events with ABI matching
 - `permit.gleam` - EIP-2612 permit signing helper
 - `multicall.gleam` - Multicall3 batching for efficient contract reads
+- `watcher.gleam` - block watcher using OTP actor with polling and typed events
 - `rpc/batch.gleam` - batch JSON-RPC requests in a single HTTP call
 - `utils/` - hex conversion, input validation
 
