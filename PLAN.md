@@ -106,9 +106,24 @@ Each ships independently as a minor version bump.
 
 Not yet tracked as issues. May be worth pursuing based on user demand.
 
+### BEAM actor opportunities
+
+These features would naturally benefit from BEAM's lightweight process model:
+
+- **Actor-based receipt poller** - current wait_for_receipt blocks the caller.
+  An actor version would poll in the background and send a message when done,
+  letting the caller do other work while waiting.
+- **Nonce manager actor** - current NonceManager is a pure value. An actor version
+  would serialize nonce assignment across concurrent tasks, preventing conflicts
+  when multiple processes send transactions simultaneously.
+- **Connection pool** - distribute requests across multiple RPC endpoints for
+  redundancy and load balancing. Each endpoint managed by its own actor.
+- **Rate limiter actor** - proactively queue and throttle requests at a configured
+  rate, preventing 429s instead of reacting to them.
+
+### Other
+
 - **Simulation/dry-run** - `eth_call` with state overrides for simulating transactions
   before sending. Used by MEV bots and advanced dapps.
-- **Event subscription helper** - higher-level than block polling. Filter for specific
-  contract events, decode them automatically. "Watch for Transfer events on USDC."
 - **EIP-4844 blob transactions** - Type 3 transactions for L2 data availability.
   Increasingly relevant as rollups adopt blobs.
