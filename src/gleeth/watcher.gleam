@@ -89,8 +89,17 @@ pub fn start_with_config(
   provider: Provider,
   config: WatcherConfig,
 ) -> Result(Watcher, String) {
-  let events = process.new_subject()
+  start_with_subject(provider, config, process.new_subject())
+}
 
+/// Start watching, sending events to a caller-provided Subject.
+/// Use this when another process needs to own the receiving Subject
+/// (e.g. the event watcher actor).
+pub fn start_with_subject(
+  provider: Provider,
+  config: WatcherConfig,
+  events: Subject(BlockEvent),
+) -> Result(Watcher, String) {
   case methods.get_block_number(provider) {
     Ok(initial_block) -> {
       let state =

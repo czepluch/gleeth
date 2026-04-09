@@ -31,6 +31,7 @@ Gleeth aims to be the Gleam equivalent of alloy.rs / ethers.js - a complete Ethe
 - EIP-2612 permits: sign permits with auto domain/nonce fetch
 - Multicall3: batch contract reads at the EVM level via canonical Multicall3 contract
 - Block watcher: OTP actor that polls for new blocks and sends typed events to callers
+- Event watcher: real-time contract event streaming via block watcher + ABI decoding pipeline
 - Unified error type: `GleethError` with domain-specific wrapper variants
 - CLI for all read operations + wallet + send
 - Fuzz testing (qcheck), cross-implementation verification (cast), and anvil integration tests

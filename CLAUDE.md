@@ -41,6 +41,7 @@ Requires Elixir installed (e.g. `mise install elixir`) for the `ex_keccak` and `
 - `permit.gleam` - EIP-2612 permit signing helper
 - `multicall.gleam` - Multicall3 batching for efficient contract reads
 - `watcher.gleam` - block watcher using OTP actor with polling and typed events
+- `event_watcher.gleam` - real-time contract event streaming (block watcher + ABI decoding pipeline)
 - `rpc/batch.gleam` - batch JSON-RPC requests in a single HTTP call
 - `utils/` - hex conversion, input validation
 

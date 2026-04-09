@@ -84,7 +84,7 @@ pub fn anvil_deploy_contract_test() {
         methods.send_raw_transaction(p, signed.raw_transaction)
 
       // Verify receipt has contract address
-      let assert Ok(receipt) = methods.get_transaction_receipt(p, tx_hash)
+      let assert Ok(receipt) = methods.wait_for_receipt(p, tx_hash)
       receipt.contract_address
       |> string.length
       |> should.equal(42)
@@ -120,7 +120,7 @@ pub fn anvil_deploy_and_call_contract_test() {
       let assert Ok(signed) = transaction.sign_transaction(tx, w)
       let assert Ok(tx_hash) =
         methods.send_raw_transaction(p, signed.raw_transaction)
-      let assert Ok(receipt) = methods.get_transaction_receipt(p, tx_hash)
+      let assert Ok(receipt) = methods.wait_for_receipt(p, tx_hash)
       let contract_address = receipt.contract_address
 
       // Call getCount() - selector 0xa87d942c
@@ -252,7 +252,7 @@ pub fn anvil_revert_error_test() {
       let assert Ok(signed) = transaction.sign_transaction(tx, w)
       let assert Ok(tx_hash) =
         methods.send_raw_transaction(p, signed.raw_transaction)
-      let assert Ok(receipt) = methods.get_transaction_receipt(p, tx_hash)
+      let assert Ok(receipt) = methods.wait_for_receipt(p, tx_hash)
       let contract_address = receipt.contract_address
 
       // Call failAlways() via eth_call - selector 0x4940e5e2
@@ -427,7 +427,7 @@ pub fn anvil_eip1559_deploy_and_interact_test() {
       let assert Ok(signed) = transaction.sign_eip1559_transaction(tx, w)
       let assert Ok(tx_hash) =
         methods.send_raw_transaction(p, signed.raw_transaction)
-      let assert Ok(receipt) = methods.get_transaction_receipt(p, tx_hash)
+      let assert Ok(receipt) = methods.wait_for_receipt(p, tx_hash)
 
       // Should have a contract address
       string.length(receipt.contract_address)
