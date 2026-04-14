@@ -49,7 +49,8 @@ pub fn namehash_subdomain_test() {
 // =============================================================================
 
 fn mainnet_available() -> Bool {
-  let p = provider.mainnet()
+  // Use no-retry provider for the availability check so CI doesn't hang
+  let assert Ok(p) = provider.new("https://eth.llamarpc.com")
   case methods.get_block_number(p) {
     Ok(_) -> True
     Error(_) -> False
@@ -60,7 +61,7 @@ pub fn resolve_vitalik_eth_test() {
   case mainnet_available() {
     False -> Nil
     True -> {
-      let p = provider.mainnet()
+      let assert Ok(p) = provider.new("https://eth.llamarpc.com")
       case ens.resolve(p, "vitalik.eth") {
         Ok(address) -> {
           // Vitalik's address is well-known
@@ -80,7 +81,7 @@ pub fn resolve_nonexistent_test() {
   case mainnet_available() {
     False -> Nil
     True -> {
-      let p = provider.mainnet()
+      let assert Ok(p) = provider.new("https://eth.llamarpc.com")
       // This name almost certainly doesn't exist
       case ens.resolve(p, "thisdoesnotexist12345678.eth") {
         Error(_) -> Nil
