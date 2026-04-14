@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.0 - 2026-04-14
+
+### Features
+
+- **Block watcher** - OTP actor that polls for new blocks and sends typed `NewBlock` events via BEAM message passing
+- **Event watcher** - real-time contract event streaming: spawns a block watcher, queries logs per block, decodes against ABI, forwards typed `ContractEvent` messages
+- **ENS resolution** - `ens.resolve(provider, "vitalik.eth")` queries the ENS registry and resolver contracts
+- **ERC-20 tutorial** - step-by-step guide covering balances, transfers, approve, events, multicall, and wei conversions
+
+### Fixes
+
+- Integration tests use `wait_for_receipt` instead of direct `get_transaction_receipt` to fix flaky failures
+
 ## 1.5.0 - 2026-04-07
 
 ### Features
