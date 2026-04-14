@@ -42,6 +42,7 @@ Requires Elixir installed (e.g. `mise install elixir`) for the `ex_keccak` and `
 - `multicall.gleam` - Multicall3 batching for efficient contract reads
 - `watcher.gleam` - block watcher using OTP actor with polling and typed events
 - `event_watcher.gleam` - real-time contract event streaming (block watcher + ABI decoding pipeline)
+- `ens.gleam` - ENS name resolution (namehash + registry/resolver queries)
 - `rpc/batch.gleam` - batch JSON-RPC requests in a single HTTP call
 - `utils/` - hex conversion, input validation
 

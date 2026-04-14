@@ -195,6 +195,7 @@ pub fn main() {
 - **Multicall3** - `multicall.new() |> multicall.add(...) |> multicall.execute(provider)` batches contract reads at the EVM level
 - **Block watcher** - `watcher.start(provider)` spawns a BEAM actor that polls for new blocks and sends typed events
 - **Event watcher** - `event_watcher.start(provider, address, abi)` streams decoded contract events in real-time
+- **ENS resolution** - `ens.resolve(provider, "vitalik.eth")` resolves names to addresses
 - **RLP encoding/decoding** - per Ethereum Yellow Paper spec
 
 ## Requirements
