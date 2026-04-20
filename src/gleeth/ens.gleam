@@ -156,6 +156,53 @@ pub fn reverse_resolve(
 // Internal RPC helpers
 // =============================================================================
 
+/// ABI-decode a string from RPC return data.
+/// Layout: offset(32 bytes) + length(32 bytes at offset) + data.
+/// Shared between ENS and permit modules.
+pub fn decode_abi_string(
+  result_hex: String,
+) -> Result(String, rpc_types.GleethError) {
+  use bytes <- result.try(
+    hex.decode(result_hex)
+    |> result.map_error(fn(_) { rpc_types.ParseError("Invalid hex response") }),
+  )
+  case bit_array.byte_size(bytes) >= 64 {
+    False -> Error(rpc_types.ParseError("ABI string response too short"))
+    True -> {
+      use offset_bytes <- result.try(
+        bit_array.slice(bytes, 0, 32)
+        |> result.map_error(fn(_) {
+          rpc_types.ParseError("Failed to read string offset")
+        }),
+      )
+      let offset = hex.bytes_to_int(offset_bytes)
+      use len_bytes <- result.try(
+        bit_array.slice(bytes, offset, 32)
+        |> result.map_error(fn(_) {
+          rpc_types.ParseError("Failed to read string length")
+        }),
+      )
+      let len = hex.bytes_to_int(len_bytes)
+      case len > 0 {
+        False -> Error(rpc_types.ParseError("Empty string in ABI response"))
+        True -> {
+          use str_bytes <- result.try(
+            bit_array.slice(bytes, offset + 32, len)
+            |> result.map_error(fn(_) {
+              rpc_types.ParseError("Failed to read string data")
+            }),
+          )
+          case bit_array.to_string(str_bytes) {
+            Ok(s) -> Ok(s)
+            Error(_) ->
+              Error(rpc_types.ParseError("Invalid UTF-8 in ABI string"))
+          }
+        }
+      }
+    }
+  }
+}
+
 /// Call a function that takes a bytes32 arg and returns a string.
 fn call_string(
   provider: Provider,
@@ -172,44 +219,7 @@ fn call_string(
     contract,
     calldata,
   ))
-
-  // ABI-decode string: offset(32) + length(32) + data
-  case hex.decode(result_hex) {
-    Ok(bytes) -> {
-      case bit_array.byte_size(bytes) >= 64 {
-        True -> {
-          let assert Ok(offset_bytes) = bit_array.slice(bytes, 0, 32)
-          let offset = bytes_to_int(offset_bytes)
-          let assert Ok(len_bytes) = bit_array.slice(bytes, offset, 32)
-          let len = bytes_to_int(len_bytes)
-          case len > 0 {
-            True -> {
-              let assert Ok(str_bytes) =
-                bit_array.slice(bytes, offset + 32, len)
-              case bit_array.to_string(str_bytes) {
-                Ok(s) -> Ok(s)
-                Error(_) -> Ok("")
-              }
-            }
-            False -> Ok("")
-          }
-        }
-        False -> Ok("")
-      }
-    }
-    Error(_) -> Ok("")
-  }
-}
-
-fn bytes_to_int(data: BitArray) -> Int {
-  do_bytes_to_int(data, 0)
-}
-
-fn do_bytes_to_int(data: BitArray, acc: Int) -> Int {
-  case data {
-    <<byte:8, rest:bits>> -> do_bytes_to_int(rest, acc * 256 + byte)
-    _ -> acc
-  }
+  decode_abi_string(result_hex)
 }
 
 /// Call a function that takes a bytes32 arg and returns an address.
@@ -219,7 +229,6 @@ fn call_address(
   selector: String,
   arg_hex: String,
 ) -> Result(String, rpc_types.GleethError) {
-  // ABI-encode: selector + bytes32 arg (left-padded to 32 bytes)
   let arg_clean = hex.strip_prefix(arg_hex)
   let padded = string.pad_start(arg_clean, to: 64, with: "0")
   let calldata = selector <> padded
@@ -230,20 +239,24 @@ fn call_address(
     calldata,
   ))
 
-  // Decode address from 32-byte return value (last 20 bytes)
-  case hex.decode(result_hex) {
-    Ok(bytes) -> {
-      let size = bit_array.byte_size(bytes)
-      case size >= 32 {
-        True -> {
-          let assert Ok(addr_bytes) = bit_array.slice(bytes, 12, 20)
-          let addr =
-            "0x" <> string.lowercase(bit_array.base16_encode(addr_bytes))
-          Ok(addr)
-        }
-        False -> Ok("")
-      }
+  use bytes <- result.try(
+    hex.decode(result_hex)
+    |> result.map_error(fn(_) {
+      rpc_types.ParseError("Invalid hex in address response")
+    }),
+  )
+  let size = bit_array.byte_size(bytes)
+  case size >= 32 {
+    False -> Error(rpc_types.ParseError("Address response too short"))
+    True -> {
+      use addr_bytes <- result.try(
+        bit_array.slice(bytes, 12, 20)
+        |> result.map_error(fn(_) {
+          rpc_types.ParseError("Failed to extract address bytes")
+        }),
+      )
+      let addr = "0x" <> string.lowercase(bit_array.base16_encode(addr_bytes))
+      Ok(addr)
     }
-    Error(_) -> Ok("")
   }
 }

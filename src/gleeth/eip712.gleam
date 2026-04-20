@@ -525,11 +525,13 @@ fn pad_left(data: BitArray, target: Int) -> BitArray {
   case size >= target {
     True -> {
       // Take the last `target` bytes
-      let assert Ok(result) = bit_array.slice(data, size - target, target)
-      result
+      case bit_array.slice(data, size - target, target) {
+        Ok(sliced) -> sliced
+        Error(_) -> data
+      }
     }
     False -> {
-      let padding = make_zeros(target - size)
+      let padding = hex.make_zeros(target - size)
       bit_array.concat([padding, data])
     }
   }
@@ -539,27 +541,15 @@ fn pad_right(data: BitArray, target: Int) -> BitArray {
   let size = bit_array.byte_size(data)
   case size >= target {
     True -> {
-      let assert Ok(result) = bit_array.slice(data, 0, target)
-      result
+      case bit_array.slice(data, 0, target) {
+        Ok(sliced) -> sliced
+        Error(_) -> data
+      }
     }
     False -> {
-      let padding = make_zeros(target - size)
+      let padding = hex.make_zeros(target - size)
       bit_array.concat([data, padding])
     }
-  }
-}
-
-fn make_zeros(n: Int) -> BitArray {
-  case n <= 0 {
-    True -> <<>>
-    False -> make_zeros_acc(n, <<>>)
-  }
-}
-
-fn make_zeros_acc(n: Int, acc: BitArray) -> BitArray {
-  case n <= 0 {
-    True -> acc
-    False -> make_zeros_acc(n - 1, <<acc:bits, 0:8>>)
   }
 }
 
@@ -607,18 +597,28 @@ fn add_one_at(data: BitArray, pos: Int, carry: Int) -> BitArray {
   case pos < 0 {
     True -> data
     False -> {
-      let assert Ok(<<byte:8>>) = bit_array.slice(data, pos, 1)
-      let sum = byte + carry
-      let new_byte = int.bitwise_and(sum, 0xff)
-      let new_carry = int.bitwise_shift_right(sum, 8)
-      let assert Ok(before) = bit_array.slice(data, 0, pos)
-      let after_start = pos + 1
-      let after_len = bit_array.byte_size(data) - after_start
-      let assert Ok(after) = bit_array.slice(data, after_start, after_len)
-      let new_data = bit_array.concat([before, <<new_byte:8>>, after])
-      case new_carry {
-        0 -> new_data
-        _ -> add_one_at(new_data, pos - 1, new_carry)
+      case bit_array.slice(data, pos, 1) {
+        Ok(<<byte:8>>) -> {
+          let sum = byte + carry
+          let new_byte = int.bitwise_and(sum, 0xff)
+          let new_carry = int.bitwise_shift_right(sum, 8)
+          let before = case bit_array.slice(data, 0, pos) {
+            Ok(b) -> b
+            Error(_) -> <<>>
+          }
+          let after_start = pos + 1
+          let after_len = bit_array.byte_size(data) - after_start
+          let after = case bit_array.slice(data, after_start, after_len) {
+            Ok(a) -> a
+            Error(_) -> <<>>
+          }
+          let new_data = bit_array.concat([before, <<new_byte:8>>, after])
+          case new_carry {
+            0 -> new_data
+            _ -> add_one_at(new_data, pos - 1, new_carry)
+          }
+        }
+        _ -> data
       }
     }
   }

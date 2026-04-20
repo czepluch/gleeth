@@ -19,13 +19,13 @@
 //// // sig.v, sig.r, sig.s ready for on-chain permit() call
 //// ```
 
-import gleam/bit_array
 import gleam/dict
 import gleam/result
 import gleam/string
 import gleeth/crypto/secp256k1
 import gleeth/crypto/wallet
 import gleeth/eip712
+import gleeth/ens
 import gleeth/provider.{type Provider}
 import gleeth/rpc/methods
 import gleeth/rpc/types as rpc_types
@@ -71,8 +71,14 @@ pub fn sign(
   // Fetch chain ID
   use chain_id_hex <- result.try(methods.get_chain_id(provider))
 
-  let assert Ok(nonce) = hex.to_int(nonce_hex)
-  let assert Ok(chain_id) = hex.to_int(chain_id_hex)
+  use nonce <- result.try(
+    hex.to_int(nonce_hex)
+    |> result.map_error(fn(_) { rpc_types.ParseError("Invalid nonce hex") }),
+  )
+  use chain_id <- result.try(
+    hex.to_int(chain_id_hex)
+    |> result.map_error(fn(_) { rpc_types.ParseError("Invalid chain ID hex") }),
+  )
 
   // Build domain - try version "2" first (USDC), fall back to "1"
   let domain =
@@ -156,27 +162,7 @@ fn call_string(
     address,
     selector,
   ))
-  // ABI-decode as string: offset(32) + length(32) + data
-  case hex_decode(result_hex) {
-    Ok(bytes) -> {
-      case bit_array.byte_size(bytes) >= 64 {
-        True -> {
-          // Read offset at 0, length at offset, data after length
-          let assert Ok(offset_bytes) = bit_array.slice(bytes, 0, 32)
-          let offset = bytes_to_int(offset_bytes)
-          let assert Ok(len_bytes) = bit_array.slice(bytes, offset, 32)
-          let len = bytes_to_int(len_bytes)
-          let assert Ok(str_bytes) = bit_array.slice(bytes, offset + 32, len)
-          case bit_array.to_string(str_bytes) {
-            Ok(s) -> Ok(s)
-            Error(_) -> Ok("")
-          }
-        }
-        False -> Ok("")
-      }
-    }
-    Error(_) -> Ok("")
-  }
+  ens.decode_abi_string(result_hex)
 }
 
 /// Call a function with one address arg that returns a uint256.
@@ -191,23 +177,4 @@ fn call_uint(
   let padded = string.repeat("0", 64 - string.length(clean_addr)) <> clean_addr
   let calldata = selector <> string.lowercase(padded)
   methods.call_contract(provider, address, calldata)
-}
-
-fn hex_decode(hex_string: String) -> Result(BitArray, Nil) {
-  let clean = case string.starts_with(hex_string, "0x") {
-    True -> string.drop_start(hex_string, 2)
-    False -> hex_string
-  }
-  bit_array.base16_decode(string.uppercase(clean))
-}
-
-fn bytes_to_int(data: BitArray) -> Int {
-  do_bytes_to_int(data, 0)
-}
-
-fn do_bytes_to_int(data: BitArray, acc: Int) -> Int {
-  case data {
-    <<byte:8, rest:bits>> -> do_bytes_to_int(rest, acc * 256 + byte)
-    _ -> acc
-  }
 }

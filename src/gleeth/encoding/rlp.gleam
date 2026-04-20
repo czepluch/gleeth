@@ -249,9 +249,13 @@ fn take_bytes(data: BitArray, n: Int) -> Result(#(BitArray, BitArray), RlpError)
       let available = bit_array.byte_size(data)
       case available >= n {
         True -> {
-          let assert Ok(taken) = bit_array.slice(data, 0, n)
-          let assert Ok(rest) = bit_array.slice(data, n, available - n)
-          Ok(#(taken, rest))
+          case
+            bit_array.slice(data, 0, n),
+            bit_array.slice(data, n, available - n)
+          {
+            Ok(taken), Ok(rest) -> Ok(#(taken, rest))
+            _, _ -> Error(UnexpectedEnd)
+          }
         }
         False -> Error(UnexpectedEnd)
       }

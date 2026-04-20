@@ -67,7 +67,15 @@ All errors flow through `rpc/types.gleam`'s `GleethError` sum type with variants
 
 ## Gleam Conventions
 
+Follow https://gleam.run/documentation/conventions-patterns-and-anti-patterns/ strictly.
+
+Key rules for this codebase:
+- **Never panic in library code** - no `let assert` in src/. Use `use x <- result.try(...)` or case expressions instead.
+- **Always propagate errors** - never return `Ok("")` or `Ok(default)` to hide failures. Return proper Error variants.
+- **Use qualified imports** - always `string.length(x)` not unqualified `length(x)`
+- **All imports at top of file** - never at the bottom or mid-file
+- **Use `use <- result.try(...)` to flatten** nested case expressions on Results
 - Pattern match on results with `use x <- result.try(...)` for monadic error chaining
-- Public types use constructors as their API (e.g., `Config(rpc_url: String)`)
+- Public types use constructors as their API (e.g., `Provider(rpc_url: String)`)
 - Imports use `as` aliases: `import gleeth/rpc/types as rpc_types`
 - Test files mirror source structure under `test/` with `_test` suffix

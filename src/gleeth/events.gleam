@@ -17,6 +17,8 @@
 //// // decoded: List(EventResult) - each with event name and typed params
 //// ```
 
+import gleam/list
+import gleam/result
 import gleeth/ethereum/abi/events as abi_events
 import gleeth/ethereum/abi/json
 import gleeth/ethereum/types as eth_types
@@ -113,10 +115,10 @@ pub fn decode_logs(
 // Internal
 // =============================================================================
 
-import gleam/list
-import gleam/result
-
-fn compute_event_topic(abi: List(json.AbiEntry), event_name: String) -> String {
+pub fn compute_event_topic(
+  abi: List(json.AbiEntry),
+  event_name: String,
+) -> String {
   let found =
     list.find(abi, fn(entry) {
       case entry {

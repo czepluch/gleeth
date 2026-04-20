@@ -213,9 +213,11 @@ fn emit_new_blocks(
   last_block: String,
   current_block: String,
 ) -> Nil {
-  let assert Ok(last_num) = hex.to_int(last_block)
-  let assert Ok(current_num) = hex.to_int(current_block)
-  emit_blocks_range(provider, events, last_num + 1, current_num)
+  case hex.to_int(last_block), hex.to_int(current_block) {
+    Ok(last_num), Ok(current_num) ->
+      emit_blocks_range(provider, events, last_num + 1, current_num)
+    _, _ -> Nil
+  }
 }
 
 fn emit_blocks_range(

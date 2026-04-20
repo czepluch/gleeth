@@ -16,6 +16,7 @@
 
 import bigi.{type BigInt}
 import gleam/int
+import gleam/order
 import gleam/result
 import gleam/string
 import gleeth/utils/hex
@@ -130,7 +131,10 @@ fn wei_to_decimal(hex_string: String, decimals: Int) -> Result(String, String) {
     |> result.map_error(fn(_) { "Invalid hex: " <> hex_string }),
   )
   let divisor_str = power_of_10_string(decimals)
-  let assert Ok(divisor) = bigi.from_string(divisor_str)
+  use divisor <- result.try(
+    bigi.from_string(divisor_str)
+    |> result.map_error(fn(_) { "Failed to parse divisor" }),
+  )
   let whole = bigi.divide(wei, divisor)
   let remainder = bigi.remainder(wei, divisor)
   let whole_str = bigi.to_string(whole)
@@ -156,7 +160,10 @@ fn parse_decimal_to_bigint(
         bigi.from_string(whole)
         |> result.map_error(fn(_) { "Invalid number: " <> amount }),
       )
-      let assert Ok(multiplier) = bigi.from_string(power_of_10_string(decimals))
+      use multiplier <- result.try(
+        bigi.from_string(power_of_10_string(decimals))
+        |> result.map_error(fn(_) { "Failed to parse multiplier" }),
+      )
       Ok(bigi.multiply(whole_big, multiplier))
     }
     [whole, frac] -> {
@@ -198,7 +205,10 @@ fn bigint_to_hex_loop(value: BigInt, acc: String) -> String {
     _ -> {
       let remainder = bigi.remainder(value, sixteen)
       let quotient = bigi.divide(value, sixteen)
-      let assert Ok(nibble) = bigi.to_int(remainder)
+      let nibble = case bigi.to_int(remainder) {
+        Ok(n) -> n
+        Error(_) -> 0
+      }
       let hex_char = nibble_to_char(nibble)
       bigint_to_hex_loop(quotient, hex_char <> acc)
     }
@@ -255,5 +265,3 @@ fn trim_trailing_zeros(s: String) -> String {
     }
   }
 }
-
-import gleam/order

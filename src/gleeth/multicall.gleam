@@ -145,15 +145,22 @@ pub fn execute_at(
 fn encode_aggregate3(calls: List(Call)) -> Result(String, rpc_types.GleethError) {
   // Encode as: aggregate3((address,bool,bytes)[])
   // Each call is a tuple of (address, bool, bytes)
-  let call_values =
-    list.map(calls, fn(c) {
-      let assert Ok(calldata_bytes) = hex.decode(c.calldata)
-      abi_types.TupleValue([
-        abi_types.AddressValue(c.target),
-        abi_types.BoolValue(c.allow_failure),
-        abi_types.BytesValue(calldata_bytes),
-      ])
-    })
+  use call_values <- result.try(
+    list.try_map(calls, fn(c) {
+      case hex.decode(c.calldata) {
+        Ok(calldata_bytes) ->
+          Ok(
+            abi_types.TupleValue([
+              abi_types.AddressValue(c.target),
+              abi_types.BoolValue(c.allow_failure),
+              abi_types.BytesValue(calldata_bytes),
+            ]),
+          )
+        Error(_) ->
+          Error(rpc_types.ParseError("Invalid calldata hex: " <> c.calldata))
+      }
+    }),
+  )
 
   let call_type =
     abi_types.Tuple([abi_types.Address, abi_types.Bool, abi_types.Bytes])

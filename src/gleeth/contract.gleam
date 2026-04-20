@@ -336,7 +336,7 @@ fn coerce_value(
           let pad_size = size - bit_array.byte_size(bytes)
           case pad_size >= 0 {
             True -> {
-              let padding = make_zeros(pad_size)
+              let padding = hex.make_zeros(pad_size)
               Ok(abi_types.FixedBytesValue(bit_array.concat([bytes, padding])))
             }
             False -> Error(rpc_types.ParseError("bytes value too long"))
@@ -371,20 +371,6 @@ fn parse_int_value(
         Error(_) ->
           Error(rpc_types.ParseError("Cannot parse integer: " <> value))
       }
-  }
-}
-
-fn make_zeros(n: Int) -> BitArray {
-  case n <= 0 {
-    True -> <<>>
-    False -> make_zeros_acc(n, <<>>)
-  }
-}
-
-fn make_zeros_acc(n: Int, acc: BitArray) -> BitArray {
-  case n <= 0 {
-    True -> acc
-    False -> make_zeros_acc(n - 1, <<acc:bits, 0:8>>)
   }
 }
 

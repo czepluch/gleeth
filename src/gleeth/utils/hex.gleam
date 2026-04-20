@@ -324,3 +324,36 @@ pub fn validate_length(
       )
   }
 }
+
+// =============================================================================
+// Shared byte utilities
+// =============================================================================
+
+/// Convert a big-endian BitArray to an integer.
+/// Used by ENS, permit, and RLP modules for ABI offset/length parsing.
+pub fn bytes_to_int(data: BitArray) -> Int {
+  do_bytes_to_int(data, 0)
+}
+
+fn do_bytes_to_int(data: BitArray, acc: Int) -> Int {
+  case data {
+    <<byte:8, rest:bits>> -> do_bytes_to_int(rest, acc * 256 + byte)
+    _ -> acc
+  }
+}
+
+/// Create a BitArray of n zero bytes.
+/// Shared by eip712 and contract modules for padding.
+pub fn make_zeros(n: Int) -> BitArray {
+  case n <= 0 {
+    True -> <<>>
+    False -> make_zeros_acc(n, <<>>)
+  }
+}
+
+fn make_zeros_acc(n: Int, acc: BitArray) -> BitArray {
+  case n <= 0 {
+    True -> acc
+    False -> make_zeros_acc(n - 1, <<acc:bits, 0:8>>)
+  }
+}

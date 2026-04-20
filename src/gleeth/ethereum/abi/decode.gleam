@@ -2,12 +2,15 @@ import gleam/bit_array
 import gleam/int
 import gleam/list
 import gleam/result
+import gleam/string
 import gleeth/crypto/keccak
+import gleeth/ethereum/abi/json
 import gleeth/ethereum/abi/type_parser
 import gleeth/ethereum/abi/types.{
   type AbiError, type AbiType, type AbiValue, Address, Array, Bool, Bytes,
   FixedArray, FixedBytes, Int, String, Tuple, Uint,
 }
+import gleeth/utils/hex as hex_utils
 
 /// Decode ABI-encoded data given a list of expected types.
 /// This is the top-level decoder for function return values or event data.
@@ -262,11 +265,6 @@ fn bytes_to_uint(data: BitArray, index: Int, acc: Int) -> Int {
   }
 }
 
-// Need this import for address hex encoding
-import gleam/string
-import gleeth/ethereum/abi/json
-import gleeth/utils/hex as hex_utils
-
 // =============================================================================
 // Calldata decoding
 // =============================================================================
@@ -417,19 +415,22 @@ fn decode_custom_revert(
   revert_bytes: BitArray,
   entries: List(json.AbiEntry),
 ) -> Result(DecodedRevert, AbiError) {
-  let assert Ok(selector) = bit_array.slice(revert_bytes, 0, 4)
   let params_start = 4
   let data_len = bit_array.byte_size(revert_bytes) - params_start
-  let assert Ok(params_data) =
+  case
+    bit_array.slice(revert_bytes, 0, 4),
     bit_array.slice(revert_bytes, params_start, data_len)
-
-  // Try to match against error entries (reusing function matching logic)
-  case match_selector(selector, entries) {
-    Ok(#(name, param_types)) -> {
-      use values <- result.try(decode(param_types, params_data))
-      Ok(RevertCustomError(name: name, arguments: values))
+  {
+    Ok(selector), Ok(params_data) -> {
+      case match_selector(selector, entries) {
+        Ok(#(name, param_types)) -> {
+          use values <- result.try(decode(param_types, params_data))
+          Ok(RevertCustomError(name: name, arguments: values))
+        }
+        Error(_) -> Ok(RevertUnknown(revert_bytes))
+      }
     }
-    Error(_) -> Ok(RevertUnknown(revert_bytes))
+    _, _ -> Ok(RevertUnknown(revert_bytes))
   }
 }
 

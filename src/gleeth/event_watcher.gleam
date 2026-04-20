@@ -195,7 +195,7 @@ fn event_loop(
         "" ->
           methods.get_logs(provider, block_number, block_number, address, [])
         _ -> {
-          let topic0 = compute_event_topic(abi, event_name)
+          let topic0 = events.compute_event_topic(abi, event_name)
           let topics = case topic0 {
             "" -> []
             t -> [t]
@@ -264,29 +264,5 @@ fn forward_events(
       }
       forward_events(rest, subject)
     }
-  }
-}
-
-// =============================================================================
-// Internal helpers
-// =============================================================================
-
-import gleam/list
-import gleeth/ethereum/abi/events as event_utils
-
-fn compute_event_topic(abi: List(json.AbiEntry), event_name: String) -> String {
-  let found =
-    list.find(abi, fn(entry) {
-      case entry {
-        json.EventEntry(name, _) -> name == event_name
-        _ -> False
-      }
-    })
-  case found {
-    Ok(json.EventEntry(name, inputs)) -> {
-      let types = list.map(inputs, fn(p: json.EventParam) { p.type_ })
-      event_utils.event_topic_hex(name, types)
-    }
-    _ -> ""
   }
 }

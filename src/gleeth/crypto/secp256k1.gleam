@@ -244,16 +244,22 @@ pub fn signature_from_hex(hex_string: String) -> Result(Signature, String) {
   use bytes <- result.try(hex.decode(hex_string))
   case bit_array.byte_size(bytes) {
     65 -> {
-      let assert Ok(r) = bit_array.slice(bytes, 0, 32)
-      let assert Ok(s) = bit_array.slice(bytes, 32, 32)
-      let assert Ok(<<v_byte:8>>) = bit_array.slice(bytes, 64, 1)
-      let recovery_id = case v_byte {
-        0 | 1 -> v_byte
-        27 -> 0
-        28 -> 1
-        _ -> v_byte - 27
+      case
+        bit_array.slice(bytes, 0, 32),
+        bit_array.slice(bytes, 32, 32),
+        bit_array.slice(bytes, 64, 1)
+      {
+        Ok(r), Ok(s), Ok(<<v_byte:8>>) -> {
+          let recovery_id = case v_byte {
+            0 | 1 -> v_byte
+            27 -> 0
+            28 -> 1
+            _ -> v_byte - 27
+          }
+          Ok(Signature(r: r, s: s, recovery_id: recovery_id))
+        }
+        _, _, _ -> Error("Failed to extract signature components")
       }
-      Ok(Signature(r: r, s: s, recovery_id: recovery_id))
     }
     size ->
       Error("Signature must be exactly 65 bytes, got " <> string.inspect(size))
