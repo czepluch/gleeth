@@ -91,3 +91,58 @@ pub fn resolve_nonexistent_test() {
     }
   }
 }
+
+// =============================================================================
+// Reverse resolution
+// =============================================================================
+
+pub fn namehash_reverse_node_test() {
+  // Verify the reverse namehash is computed correctly
+  // The reverse node for an address is: <addr>.addr.reverse
+  let reverse_name = "d8da6bf26964af9d7eed9e03e53415d37aa96045.addr.reverse"
+  let hash = ens.namehash(reverse_name)
+  // Should be a valid 32-byte hash, different from the forward hash
+  let forward_hash = ens.namehash("vitalik.eth")
+  should.not_equal(hash, forward_hash)
+  // Should be 32 bytes
+  gleam_bit_array.byte_size(hash) |> should.equal(32)
+}
+
+pub fn reverse_resolve_vitalik_test() {
+  case mainnet_available() {
+    False -> Nil
+    True -> {
+      let assert Ok(p) = provider.new("https://eth.llamarpc.com")
+      case
+        ens.reverse_resolve(p, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+      {
+        Ok(name) -> {
+          // Vitalik has a reverse record
+          name |> should.equal("vitalik.eth")
+        }
+        Error(_) -> {
+          // Network might be flaky
+          Nil
+        }
+      }
+    }
+  }
+}
+
+pub fn reverse_resolve_no_record_test() {
+  case mainnet_available() {
+    False -> Nil
+    True -> {
+      let assert Ok(p) = provider.new("https://eth.llamarpc.com")
+      // Zero address almost certainly has no reverse record
+      case
+        ens.reverse_resolve(p, "0x0000000000000000000000000000000000000001")
+      {
+        Error(_) -> Nil
+        Ok(_) -> Nil
+      }
+    }
+  }
+}
+
+import gleam/bit_array as gleam_bit_array

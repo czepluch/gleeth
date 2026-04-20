@@ -1,13 +1,17 @@
 //// ENS (Ethereum Name Service) resolution.
 ////
-//// Resolves human-readable `.eth` names to Ethereum addresses by querying
-//// the ENS registry and resolver contracts on-chain.
+//// Resolves human-readable `.eth` names to Ethereum addresses (forward)
+//// and addresses back to names (reverse) by querying the ENS registry
+//// and resolver contracts on-chain.
 ////
 //// ## Examples
 ////
 //// ```gleam
+//// // Forward: name -> address
 //// let assert Ok(address) = ens.resolve(provider, "vitalik.eth")
-//// // address = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+////
+//// // Reverse: address -> name
+//// let assert Ok(name) = ens.reverse_resolve(provider, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 //// ```
 
 import gleam/bit_array
@@ -97,9 +101,116 @@ pub fn namehash(name: String) -> BitArray {
   }
 }
 
+/// Reverse resolve an Ethereum address to its primary ENS name.
+///
+/// Computes the reverse node (`<addr>.addr.reverse`), queries the ENS
+/// registry for the reverse resolver, then calls `name(bytes32)` on it.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let assert Ok(name) = ens.reverse_resolve(
+///   provider,
+///   "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+/// )
+/// // name = "vitalik.eth"
+/// ```
+pub fn reverse_resolve(
+  provider: Provider,
+  address: String,
+) -> Result(String, rpc_types.GleethError) {
+  // Build the reverse node: <lowercase-addr-no-prefix>.addr.reverse
+  let clean_addr = string.lowercase(hex.strip_prefix(address))
+  let reverse_name = clean_addr <> ".addr.reverse"
+  let node = namehash(reverse_name)
+  let node_hex = hex.encode(node)
+
+  // Get the reverse resolver from the registry
+  use resolver_address <- result.try(call_address(
+    provider,
+    registry_address,
+    "0x0178b8bf",
+    node_hex,
+  ))
+
+  case resolver_address {
+    "" | "0x0000000000000000000000000000000000000000" ->
+      Error(rpc_types.ParseError("No reverse resolver for: " <> address))
+    resolver -> {
+      // Call name(bytes32) on the resolver - selector 0x691f3431
+      use name <- result.try(call_string(
+        provider,
+        resolver,
+        "0x691f3431",
+        node_hex,
+      ))
+      case name {
+        "" -> Error(rpc_types.ParseError("No reverse record for: " <> address))
+        n -> Ok(n)
+      }
+    }
+  }
+}
+
 // =============================================================================
 // Internal RPC helpers
 // =============================================================================
+
+/// Call a function that takes a bytes32 arg and returns a string.
+fn call_string(
+  provider: Provider,
+  contract: String,
+  selector: String,
+  arg_hex: String,
+) -> Result(String, rpc_types.GleethError) {
+  let arg_clean = hex.strip_prefix(arg_hex)
+  let padded = string.pad_start(arg_clean, to: 64, with: "0")
+  let calldata = selector <> padded
+
+  use result_hex <- result.try(methods.call_contract(
+    provider,
+    contract,
+    calldata,
+  ))
+
+  // ABI-decode string: offset(32) + length(32) + data
+  case hex.decode(result_hex) {
+    Ok(bytes) -> {
+      case bit_array.byte_size(bytes) >= 64 {
+        True -> {
+          let assert Ok(offset_bytes) = bit_array.slice(bytes, 0, 32)
+          let offset = bytes_to_int(offset_bytes)
+          let assert Ok(len_bytes) = bit_array.slice(bytes, offset, 32)
+          let len = bytes_to_int(len_bytes)
+          case len > 0 {
+            True -> {
+              let assert Ok(str_bytes) =
+                bit_array.slice(bytes, offset + 32, len)
+              case bit_array.to_string(str_bytes) {
+                Ok(s) -> Ok(s)
+                Error(_) -> Ok("")
+              }
+            }
+            False -> Ok("")
+          }
+        }
+        False -> Ok("")
+      }
+    }
+    Error(_) -> Ok("")
+  }
+}
+
+fn bytes_to_int(data: BitArray) -> Int {
+  do_bytes_to_int(data, 0)
+}
+
+fn do_bytes_to_int(data: BitArray, acc: Int) -> Int {
+  case data {
+    <<byte:8, rest:bits>> -> do_bytes_to_int(rest, acc * 256 + byte)
+    _ -> acc
+  }
+}
 
 /// Call a function that takes a bytes32 arg and returns an address.
 fn call_address(
